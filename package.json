@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",
+    "@ai-sdk/openai": "^3.0.63",
     "@ai-sdk/react": "3.0.182",
     "ai": "6.0.180",
+    "mongoose": "^9.6.2",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
