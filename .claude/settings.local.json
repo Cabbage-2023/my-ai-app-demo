@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:ai-sdk.dev)"
+      "WebFetch(domain:ai-sdk.dev)",
+      "Bash(curl -sL \"https://bangumi.tv/character/75430?page=2\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" --max-time 10)",
+      "Bash(curl -sL \"https://bangumi.tv/character/394\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" --max-time 10)",
+      "Bash(curl -sL \"https://bangumi.tv/character/75430/comments\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" --max-time 10 -o /tmp/char-comments-75430.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -sL \"https://bangumi.tv/character/754\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" --max-time 10)",
+      "Bash(npx tsx *)"
     ]
   }
 }
