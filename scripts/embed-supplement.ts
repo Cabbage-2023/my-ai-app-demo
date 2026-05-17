@@ -4,7 +4,7 @@
  * 1. 读取新游戏的 ID 列表
  * 2. 只读取这些 ID 对应的 parsed 数据
  * 3. 分块、生成 embedding
- * 4. 追加到 embedded-chunks.json
+ * 4. 追加到 embedded-chunks.jsonl（JSONL 格式）
  *
  * 用法：
  *   pnpm tsx scripts/embed-supplement.ts --ids=935,xxx,yyy
@@ -12,14 +12,16 @@
  */
 import 'dotenv/config'
 import path from 'node:path'
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
+import { readFile, mkdir, readdir } from 'node:fs/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { generateEmbeddings } from '../src/lib/ai/embedding'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
-const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.json')
+const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const CHUNK_SIZE = 500
 const CHUNK_OVERLAP = 50
-const MIN_COMMENT_LEN = 15
+const MIN_COMMENT_LEN = 30
 const MIN_CHAR_COMMENT_LEN = 20
 const EMBED_BATCH = 20
 
@@ -188,14 +190,21 @@ async function main() {
     return
   }
 
-  // 4. 去重（对 embedded-chunks.json 去重）
-  let existingDedupKeys = new Set<string>()
+  // 4. 去重（对 embedded-chunks.jsonl 去重）
+  let existingCount = 0
+  const existingDedupKeys = new Set<string>()
   try {
-    const existing = JSON.parse(await readFile(CACHE_PATH, 'utf-8'))
-    if (Array.isArray(existing)) {
-      existingDedupKeys = new Set(existing.map((c: any) => c.dedupKey))
-      console.log(`已有缓存: ${existing.length} 条`)
+    const rl = createInterface({ input: createReadStream(CACHE_PATH, 'utf-8'), crlfDelay: Infinity })
+    for await (const line of rl) {
+      existingCount++
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed.dedupKey) existingDedupKeys.add(parsed.dedupKey)
+      } catch { /* skip malformed line */ }
     }
+    console.log(`已有缓存: ${existingCount} 条`)
   } catch { console.log('无现有缓存，从头创建') }
 
   const toEmbed = allChunks.filter(c => !existingDedupKeys.has(c.dedupKey))
@@ -222,17 +231,18 @@ async function main() {
     }
   }
 
-  // 6. 追加到缓存
-  let existingEmbedded: any[] = []
-  try {
-    existingEmbedded = JSON.parse(await readFile(CACHE_PATH, 'utf-8'))
-    if (!Array.isArray(existingEmbedded)) existingEmbedded = []
-  } catch { /* fresh file */ }
-
-  const merged = [...existingEmbedded, ...embedded]
+  // 6. 追加到缓存（JSONL 格式，每条一行）
   await mkdir(path.dirname(CACHE_PATH), { recursive: true })
-  await writeFile(CACHE_PATH, JSON.stringify(merged), 'utf-8')
-  console.log(`\n缓存已更新: ${existingEmbedded.length} → ${merged.length} 条`)
+  const ws = createWriteStream(CACHE_PATH, { flags: 'a', encoding: 'utf-8' })
+  for (const item of embedded) {
+    ws.write(JSON.stringify(item) + '\n')
+  }
+  await new Promise<void>((resolve, reject) => {
+    ws.on('finish', () => resolve())
+    ws.on('error', reject)
+    ws.end()
+  })
+  console.log(`\n缓存已更新: ${existingCount} → ${existingCount + embedded.length} 条`)
 
   console.log('\n=== 完成 ===')
   console.log(`下一步: pnpm tsx scripts/load-to-qdrant.ts`)

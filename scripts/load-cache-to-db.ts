@@ -7,10 +7,11 @@
  */
 import 'dotenv/config'
 import path from 'node:path'
-import { readFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { MongoClient } from 'mongodb'
 
-const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.json')
+const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const INSERT_BATCH = 100
 
 async function main() {
@@ -23,7 +24,13 @@ async function main() {
   }
 
   console.log('读取缓存...')
-  const cached = JSON.parse(await readFile(CACHE_PATH, 'utf-8'))
+  const cached: any[] = []
+  const rl = createInterface({ input: createReadStream(CACHE_PATH, 'utf-8'), crlfDelay: Infinity })
+  for await (const line of rl) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    try { cached.push(JSON.parse(trimmed)) } catch { /* skip malformed */ }
+  }
   console.log(`  缓存共 ${cached.length} 条带向量数据\n`)
 
   // 2. 连接 MongoDB

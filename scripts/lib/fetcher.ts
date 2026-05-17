@@ -98,11 +98,11 @@ export function commentsUrl(id: number, page: number) {
   }
 }
 
-/** 生成长评页的 URL 和 cacheKey */
-export function reviewsUrl(id: number) {
+/** 生成长评页的 URL 和 cacheKey（支持分页） */
+export function reviewsUrl(id: number, page = 1) {
   return {
-    url: `${BASE_URL}/subject/${id}/reviews`,
-    cacheKey: `reviews-${id}`,
+    url: `${BASE_URL}/subject/${id}/reviews?page=${page}`,
+    cacheKey: `reviews-${id}-p${page}`,
   }
 }
 

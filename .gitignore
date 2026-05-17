@@ -40,7 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# personal
+# claude code - session data, plans, worktrees, memory
+.claude/
 
-# crawler data cache
+# windows
+Thumbs.db
+
+# crawler data cache (gitignored - includes embedded-chunks.jsonl, parsed/ data)
 /scripts/data/

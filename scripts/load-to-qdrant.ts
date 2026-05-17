@@ -5,18 +5,19 @@
  *   npx tsx scripts/load-to-qdrant.ts
  *
  * 流程：
- *   1. 读取 scripts/data/cache/embedded-chunks.json
+ *   1. 读取 scripts/data/cache/embedded-chunks.jsonl（JSONL 格式）
  *   2. 分批写入 Qdrant（每批 100 条）
  *   3. 分批写入 MongoDB（每批 500 条）
  */
 import 'dotenv/config'
 import path from 'node:path'
-import { readFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { MongoClient } from 'mongodb'
 import { upsertBatch, ensureCollection, count } from './lib/qdrant'
 import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from './lib/name-aliases'
 
-const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.json')
+const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const QDRANT_BATCH = 100
 const MONGO_BATCH = 500
 
@@ -74,8 +75,14 @@ function computeNameAliases(gameName: string, charName: string): Record<string, 
 async function main() {
   console.log('=== 缓存 → 服务器 Qdrant + MongoDB ===\n')
 
-  // 1. 读缓存
-  const cached = JSON.parse(await readFile(CACHE_PATH, 'utf-8'))
+  // 1. 读缓存（JSONL 格式，逐行解析）
+  const cached: any[] = []
+  const rl = createInterface({ input: createReadStream(CACHE_PATH, 'utf-8'), crlfDelay: Infinity })
+  for await (const line of rl) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    try { cached.push(JSON.parse(trimmed)) } catch { /* skip malformed */ }
+  }
   console.log(`读取缓存: ${cached.length} 条带向量数据\n`)
 
   // 2. 确保 Qdrant 集合存在

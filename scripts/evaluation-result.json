@@ -1,118 +1,118 @@
 {
-  "date": "2026-05-17T17:07:51.637Z",
+  "date": "2026-05-17T23:08:37.709Z",
   "totalPairs": 150,
   "strategy": "纯向量搜索",
   "metrics": {
     "all": {
       "strict": {
-        "hitRate1": 0.5866666666666667,
-        "hitRate3": 0.7333333333333333,
-        "hitRate5": 0.8,
-        "mrr": 0.6791579624079624,
-        "totalHits": 135,
+        "hitRate1": 0.58,
+        "hitRate3": 0.7266666666666667,
+        "hitRate5": 0.8066666666666666,
+        "mrr": 0.6798721152142206,
+        "totalHits": 136,
         "count": 150,
-        "precision1": 0.74,
-        "precision3": 0.6355555555555557,
-        "precision5": 0.5839999999999999,
+        "precision1": 0.7266666666666667,
+        "precision3": 0.68,
+        "precision5": 0.6359999999999999,
         "typeAccuracy": 0.004000000000000001,
-        "diversity": 2.2466666666666666
+        "diversity": 2.1333333333333333
       },
       "fuzzy": {
-        "hitRate1": 0.7533333333333333,
-        "hitRate3": 0.8933333333333333,
+        "hitRate1": 0.7466666666666667,
+        "hitRate3": 0.8666666666666667,
         "hitRate5": 0.9533333333333334,
-        "mrr": 0.8317566137566136,
-        "totalHits": 148,
+        "mrr": 0.8273333333333335,
+        "totalHits": 146,
         "count": 150,
-        "precision1": 0.74,
-        "precision3": 0.6355555555555557,
-        "precision5": 0.5839999999999999,
+        "precision1": 0.7266666666666667,
+        "precision3": 0.68,
+        "precision5": 0.6359999999999999,
         "typeAccuracy": 0.004000000000000001,
-        "diversity": 2.2466666666666666
+        "diversity": 2.1333333333333333
       }
     },
     "fact": {
       "strict": {
         "hitRate1": 0.8,
-        "hitRate3": 0.88,
+        "hitRate3": 0.96,
         "hitRate5": 0.96,
-        "mrr": 0.858,
+        "mrr": 0.8733333333333334,
         "totalHits": 24,
         "count": 25,
         "precision1": 0.76,
-        "precision3": 0.68,
-        "precision5": 0.6240000000000001,
+        "precision3": 0.76,
+        "precision5": 0.6960000000000001,
         "typeAccuracy": 0.024000000000000004,
-        "diversity": 1.96
+        "diversity": 1.68
       },
       "fuzzy": {
         "hitRate1": 0.88,
         "hitRate3": 0.96,
         "hitRate5": 1,
-        "mrr": 0.9233333333333335,
+        "mrr": 0.93,
         "totalHits": 25,
         "count": 25,
         "precision1": 0.76,
-        "precision3": 0.68,
-        "precision5": 0.6240000000000001,
+        "precision3": 0.76,
+        "precision5": 0.6960000000000001,
         "typeAccuracy": 0.024000000000000004,
-        "diversity": 1.96
+        "diversity": 1.68
       }
     },
     "opinion": {
       "strict": {
-        "hitRate1": 0.68,
-        "hitRate3": 0.8,
-        "hitRate5": 0.84,
-        "mrr": 0.7511230158730159,
+        "hitRate1": 0.66,
+        "hitRate3": 0.79,
+        "hitRate5": 0.85,
+        "mrr": 0.7430277777777777,
         "totalHits": 88,
         "count": 100,
-        "precision1": 0.77,
-        "precision3": 0.6633333333333331,
-        "precision5": 0.6119999999999999,
+        "precision1": 0.75,
+        "precision3": 0.6833333333333331,
+        "precision5": 0.65,
         "typeAccuracy": 0,
-        "diversity": 2.2
+        "diversity": 2.13
       },
       "fuzzy": {
-        "hitRate1": 0.81,
-        "hitRate3": 0.92,
-        "hitRate5": 0.95,
-        "mrr": 0.868873015873016,
-        "totalHits": 98,
+        "hitRate1": 0.78,
+        "hitRate3": 0.91,
+        "hitRate5": 0.96,
+        "mrr": 0.8536666666666668,
+        "totalHits": 96,
         "count": 100,
-        "precision1": 0.77,
-        "precision3": 0.6633333333333331,
-        "precision5": 0.6119999999999999,
+        "precision1": 0.75,
+        "precision3": 0.6833333333333331,
+        "precision5": 0.65,
         "typeAccuracy": 0,
-        "diversity": 2.2
+        "diversity": 2.13
       }
     },
     "comparison": {
       "strict": {
-        "hitRate1": 0,
-        "hitRate3": 0.32,
+        "hitRate1": 0.04,
+        "hitRate3": 0.24,
         "hitRate5": 0.48,
-        "mrr": 0.21245571095571095,
-        "totalHits": 23,
+        "mrr": 0.23378824684087846,
+        "totalHits": 24,
         "count": 25,
         "precision1": 0.6,
-        "precision3": 0.48,
-        "precision5": 0.43199999999999994,
+        "precision3": 0.5866666666666666,
+        "precision5": 0.5199999999999999,
         "typeAccuracy": 0,
-        "diversity": 2.72
+        "diversity": 2.6
       },
       "fuzzy": {
-        "hitRate1": 0.4,
-        "hitRate3": 0.72,
-        "hitRate5": 0.92,
-        "mrr": 0.5917142857142857,
+        "hitRate1": 0.48,
+        "hitRate3": 0.6,
+        "hitRate5": 0.88,
+        "mrr": 0.6193333333333332,
         "totalHits": 25,
         "count": 25,
         "precision1": 0.6,
-        "precision3": 0.48,
-        "precision5": 0.43199999999999994,
+        "precision3": 0.5866666666666666,
+        "precision5": 0.5199999999999999,
         "typeAccuracy": 0,
-        "diversity": 2.72
+        "diversity": 2.6
       }
     }
   },
@@ -205,15 +205,15 @@
       "id": "F13",
       "category": "fact",
       "question": "秋之回忆2是什么游戏",
-      "strictIndex": 3,
-      "fuzzyIndex": 3
+      "strictIndex": 1,
+      "fuzzyIndex": 0
     },
     {
       "id": "F14",
       "category": "fact",
       "question": "美好的每一天是什么样的游戏",
       "strictIndex": -1,
-      "fuzzyIndex": 0
+      "fuzzyIndex": 3
     },
     {
       "id": "F15",
@@ -226,8 +226,8 @@
       "id": "F16",
       "category": "fact",
       "question": "五彩斑斓的世界是什么样的游戏",
-      "strictIndex": 4,
-      "fuzzyIndex": 2
+      "strictIndex": 2,
+      "fuzzyIndex": 1
     },
     {
       "id": "F17",
@@ -374,7 +374,7 @@
       "category": "opinion",
       "question": "大家对 Shiroyasha 什么看法",
       "strictIndex": -1,
-      "fuzzyIndex": 2
+      "fuzzyIndex": 1
     },
     {
       "id": "O13",
@@ -464,7 +464,7 @@
       "id": "O25",
       "category": "opinion",
       "question": "传颂之物虚伪的假面值得玩吗",
-      "strictIndex": 2,
+      "strictIndex": 0,
       "fuzzyIndex": 0
     },
     {
@@ -528,7 +528,7 @@
       "category": "opinion",
       "question": "金辉恋曲四重奏好不好玩",
       "strictIndex": -1,
-      "fuzzyIndex": 8
+      "fuzzyIndex": -1
     },
     {
       "id": "O35",
@@ -548,7 +548,7 @@
       "id": "O37",
       "category": "opinion",
       "question": "FLOWERS 系列值得入坑吗",
-      "strictIndex": 0,
+      "strictIndex": 1,
       "fuzzyIndex": 0
     },
     {
@@ -597,8 +597,8 @@
       "id": "O44",
       "category": "opinion",
       "question": "Rance 系列入坑推荐哪个",
-      "strictIndex": 0,
-      "fuzzyIndex": 0
+      "strictIndex": 1,
+      "fuzzyIndex": 1
     },
     {
       "id": "O45",
@@ -618,8 +618,8 @@
       "id": "O47",
       "category": "opinion",
       "question": "求推荐类似 CLANNAD 的催泪游戏",
-      "strictIndex": 0,
-      "fuzzyIndex": 0
+      "strictIndex": 1,
+      "fuzzyIndex": 1
     },
     {
       "id": "O48",
@@ -654,7 +654,7 @@
       "category": "opinion",
       "question": "求推荐剧情深刻的视觉小说",
       "strictIndex": -1,
-      "fuzzyIndex": 9
+      "fuzzyIndex": -1
     },
     {
       "id": "O53",
@@ -716,8 +716,8 @@
       "id": "O61",
       "category": "opinion",
       "question": "五彩斑斓的世界这个系列怎么样",
-      "strictIndex": 2,
-      "fuzzyIndex": 2
+      "strictIndex": 3,
+      "fuzzyIndex": 3
     },
     {
       "id": "O62",
@@ -765,8 +765,8 @@
       "id": "O68",
       "category": "opinion",
       "question": "我们没有翅膀的剧情结构",
-      "strictIndex": 6,
-      "fuzzyIndex": 6
+      "strictIndex": 0,
+      "fuzzyIndex": 0
     },
     {
       "id": "O69",
@@ -947,8 +947,8 @@
       "id": "O94",
       "category": "opinion",
       "question": "BLACKSOULS 的剧情怎么样",
-      "strictIndex": 1,
-      "fuzzyIndex": 0
+      "strictIndex": 3,
+      "fuzzyIndex": 3
     },
     {
       "id": "O95",
@@ -989,17 +989,17 @@
       "id": "O100",
       "category": "opinion",
       "question": "BALDR SKY的游戏性和剧情平衡",
-      "strictIndex": 0,
-      "fuzzyIndex": 0
+      "strictIndex": 1,
+      "fuzzyIndex": 1
     },
     {
       "id": "C01",
       "category": "comparison",
       "question": "白色相簿2和CLANNAD哪个更感人",
-      "strictIndex": 15,
+      "strictIndex": 18,
       "fuzzyIndex": 1,
       "strictPositions": [
-        15,
+        18,
         2
       ],
       "fuzzyPositions": [
@@ -1042,15 +1042,15 @@
       "id": "C03",
       "category": "comparison",
       "question": "秋之回忆1和2哪个值得玩",
-      "strictIndex": 1,
-      "fuzzyIndex": 1,
+      "strictIndex": 0,
+      "fuzzyIndex": 0,
       "strictPositions": [
-        1,
-        1
+        0,
+        0
       ],
       "fuzzyPositions": [
         0,
-        1
+        0
       ],
       "expects": [
         {
@@ -1065,11 +1065,11 @@
       "id": "C04",
       "category": "comparison",
       "question": "海猫和寒蝉哪个推理更强",
-      "strictIndex": 14,
+      "strictIndex": 3,
       "fuzzyIndex": 3,
       "strictPositions": [
         1,
-        14
+        3
       ],
       "fuzzyPositions": [
         0,
@@ -1088,11 +1088,11 @@
       "id": "C05",
       "category": "comparison",
       "question": "传颂之物三部曲按什么顺序玩",
-      "strictIndex": 3,
+      "strictIndex": 5,
       "fuzzyIndex": 0,
       "strictPositions": [
         1,
-        3,
+        5,
         0
       ],
       "fuzzyPositions": [
@@ -1303,8 +1303,8 @@
       "strictIndex": 2,
       "fuzzyIndex": 0,
       "strictPositions": [
-        0,
-        2
+        2,
+        0
       ],
       "fuzzyPositions": [
         0,
@@ -1323,15 +1323,15 @@
       "id": "C15",
       "category": "comparison",
       "question": "BALDR SKY 和 BALDR HEART 哪个更好",
-      "strictIndex": 5,
-      "fuzzyIndex": 1,
+      "strictIndex": 7,
+      "fuzzyIndex": 0,
       "strictPositions": [
-        5,
-        2
+        7,
+        3
       ],
       "fuzzyPositions": [
-        1,
-        1
+        0,
+        0
       ],
       "expects": [
         {
@@ -1346,15 +1346,15 @@
       "id": "C16",
       "category": "comparison",
       "question": "命运石之门和 Remember11 的悬疑设计",
-      "strictIndex": 12,
-      "fuzzyIndex": 2,
+      "strictIndex": 5,
+      "fuzzyIndex": 5,
       "strictPositions": [
-        12,
-        2
+        1,
+        5
       ],
       "fuzzyPositions": [
-        0,
-        2
+        1,
+        5
       ],
       "expects": [
         {
@@ -1392,11 +1392,11 @@
       "id": "C18",
       "category": "comparison",
       "question": "星空的记忆本篇和 Eternal Heart 区别",
-      "strictIndex": -1,
+      "strictIndex": 19,
       "fuzzyIndex": 0,
       "strictPositions": [
         0,
-        -1
+        19
       ],
       "fuzzyPositions": [
         0,
@@ -1415,8 +1415,8 @@
       "id": "C19",
       "category": "comparison",
       "question": "灰色乐园和灰色果实的关系",
-      "strictIndex": 2,
-      "fuzzyIndex": 2,
+      "strictIndex": 3,
+      "fuzzyIndex": 3,
       "expects": [
         {
           "gameName": "灰色的乐园"
@@ -1451,14 +1451,14 @@
       "category": "comparison",
       "question": "Muv-Luv Alternative 和 BALDR SKY 哪个燃",
       "strictIndex": 5,
-      "fuzzyIndex": 4,
+      "fuzzyIndex": 3,
       "strictPositions": [
-        5,
-        2
+        0,
+        5
       ],
       "fuzzyPositions": [
-        4,
-        0
+        0,
+        3
       ],
       "expects": [
         {
@@ -1496,15 +1496,15 @@
       "id": "C23",
       "category": "comparison",
       "question": "丸户史明的帕露菲和青空下哪个好",
-      "strictIndex": 2,
-      "fuzzyIndex": 2,
+      "strictIndex": 4,
+      "fuzzyIndex": 4,
       "strictPositions": [
         0,
-        2
+        4
       ],
       "fuzzyPositions": [
         0,
-        2
+        4
       ],
       "expects": [
         {
@@ -1519,15 +1519,15 @@
       "id": "C24",
       "category": "comparison",
       "question": "水仙2和星之终途哪个更催泪",
-      "strictIndex": 10,
-      "fuzzyIndex": 6,
+      "strictIndex": 5,
+      "fuzzyIndex": 5,
       "strictPositions": [
         0,
-        10
+        5
       ],
       "fuzzyPositions": [
         0,
-        6
+        5
       ],
       "expects": [
         {
@@ -1542,10 +1542,10 @@
       "id": "C25",
       "category": "comparison",
       "question": "Eushully 的战女神和神采哪个耐玩",
-      "strictIndex": 10,
+      "strictIndex": 12,
       "fuzzyIndex": 5,
       "strictPositions": [
-        10,
+        12,
         0
       ],
       "fuzzyPositions": [
