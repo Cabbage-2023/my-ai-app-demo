@@ -77,20 +77,20 @@ export default function Chat() {
                     );
                   }
                   return (
-                    <div key={`${message.id}-${i}`} className="p-3 my-2 bg-purple-50 rounded-lg border border-purple-200">
-                      <div className="font-bold mb-1">📖 从知识库中找到 {results.length} 条相关信息：</div>
+                    <div key={`${message.id}-${i}`} className="p-3 my-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg border border-purple-200 dark:border-purple-700">
+                      <div className="font-bold mb-1 text-purple-900 dark:text-purple-200">📖 从知识库中找到 {results.length} 条相关信息：</div>
                       {results.map((r: any, j: number) => (
-                        <div key={j} className="mb-2 pb-2 border-b border-purple-100 last:border-0">
-                          <div>{r.content}</div>
+                        <div key={j} className="mb-2 pb-2 border-b border-purple-100 dark:border-purple-800 last:border-0">
+                          <div className="text-gray-800 dark:text-gray-200">{r.content}</div>
                           {r.metadata?.name && (
-                            <div className="text-xs text-gray-400 mt-1">来源：{r.metadata.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">来源：{r.metadata.name}</div>
                           )}
                         </div>
                       ))}
                     </div>
                   );
                 }
-                return <div key={`${message.id}-${i}`} className="animate-pulsetext-zinc-400">正在检索知识库...</div>;
+                return <div key={`${message.id}-${i}`} className="animate-pulse text-zinc-400">正在检索知识库...</div>;
               }
             }
           })}

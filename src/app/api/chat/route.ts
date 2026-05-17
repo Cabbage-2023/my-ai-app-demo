@@ -1,16 +1,29 @@
-import { streamText, UIMessage, convertToModelMessages,tool,stepCountIs, } from 'ai';
+import { streamText, UIMessage, tool, stepCountIs } from 'ai';
 import { deepseek } from '@ai-sdk/deepseek';
 import { z } from 'zod';
 import connectDB from '@/lib/mongodb';
 import { Resource } from '@/lib/models/resource';
 import { generateEmbedding } from '@/lib/ai/embedding';
+import { searchSimilar, upsertPoint } from '@/lib/qdrant';
+
+/**
+ * 将 UIMessage[]（parts 格式）转为 streamText 接受的 { role, content } 格式。
+ * AI SDK v6 的 UIMessage 没有 content 字段（只有 parts），
+ * 而 streamText 的 messages 参数要求 content 字段。
+ */
+function toSimpleMessages(msgs: UIMessage[]): { role: 'user' | 'assistant' | 'system'; content: string }[] {
+  return msgs.map(m => ({
+    role: m.role,
+    content: m.parts?.map(p => (p as any).text ?? '').join('') ?? '',
+  }));
+}
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
     model: deepseek('deepseek-v4-flash'),
-    messages: await convertToModelMessages(messages.slice(-6)),// 只保留最近 6 条消息，防止对话久了以后雪球滚太大
+    messages: toSimpleMessages(messages.slice(-6)),// 只保留最近 6 条消息，防止对话久了以后雪球滚太大
     stopWhen: stepCountIs(3),// 3步后停止，这样就可以调用tool的时候，也能看到ai说话了
     tools: {
       weather: tool({
@@ -53,6 +66,7 @@ export async function POST(req: Request) {
           await connectDB();
           const embedding = await generateEmbedding(content);
           await Resource.create({ content, embedding, metadata });
+          await upsertPoint(embedding, { content, ...metadata });
           return { success: true, message: '已存入知识库' };
         },
       }),
@@ -63,19 +77,8 @@ export async function POST(req: Request) {
           question: z.string().describe('要检索的问题'),
         }),
         execute: async ({ question }) => {
-          await connectDB();
           const embedding = await generateEmbedding(question);
-          const results = await Resource.aggregate([
-            {
-              $vectorSearch: {
-                index: 'vector_index',
-                queryVector: embedding,
-                path: 'embedding',
-                numCandidates: 10,
-                limit: 3,
-              },
-            },
-          ]);
+          const results = await searchSimilar(embedding, 3);
           return results.map(r => ({ content: r.content, metadata: r.metadata }));
         },
       }),
