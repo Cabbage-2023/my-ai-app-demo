@@ -40,6 +40,11 @@ export async function fetchHTML(
 
       const res = await fetch(url, { headers })
 
+      // 检查 HTTP 状态码，非 2xx 不缓存直接走重试
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${url}`)
+      }
+
       const text = await res.text()
 
       // 检测 404 页面（bangumi 返回 200 但内容是 404 模板）

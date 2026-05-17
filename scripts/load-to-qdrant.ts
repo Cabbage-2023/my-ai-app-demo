@@ -14,10 +14,62 @@ import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { MongoClient } from 'mongodb'
 import { upsertBatch, ensureCollection, count } from './lib/qdrant'
+import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from './lib/name-aliases'
 
 const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.json')
 const QDRANT_BATCH = 100
 const MONGO_BATCH = 500
+
+/**
+ * 计算 gameName/charName 对应的别名字段
+ *
+ * 三层来源：
+ *   1. 人工维护的 GAME_ALIASES / PRODUCER_GAMES / CHAR_ALIASES
+ *   2. 自动规则：剥离 " - " / "～" 后的主标题作为短名
+ *   3. PRODUCER_GAMES 中的品牌名同时放入 gameAliases 和 producer
+ */
+function computeNameAliases(gameName: string, charName: string): Record<string, any> {
+  const updates: Record<string, any> = {}
+  const aliasSet = new Set<string>()
+
+  // 1. 已知别名映射
+  for (const [alias, fullNames] of Object.entries(GAME_ALIASES)) {
+    if (fullNames.includes(gameName)) aliasSet.add(alias)
+  }
+
+  // 2. 自动规则：取 " - " / "～" 前的部分做短名
+  const sepMatch = gameName.match(/^(.+?)\s*[～~\-—]\s*/)
+  if (sepMatch) {
+    const short = sepMatch[1].trim()
+    if (short && short !== gameName) aliasSet.add(short)
+  }
+
+  // 3. 制作商/品牌 → 同时放入 gameAliases 和 producer
+  for (const [brand, games] of Object.entries(PRODUCER_GAMES)) {
+    if (games.includes(gameName)) {
+      aliasSet.add(brand)
+      updates.producer = brand
+    }
+  }
+
+  if (aliasSet.size > 0) {
+    updates.gameAliases = [...aliasSet]
+  }
+
+  // 4. 角色别名（收集所有匹配的别名，兼保留 charNameCN 向后兼容）
+  const charAliasSet = new Set<string>()
+  for (const [cnName, jpNames] of Object.entries(CHAR_ALIASES)) {
+    if (jpNames.includes(charName)) {
+      charAliasSet.add(cnName)
+    }
+  }
+  if (charAliasSet.size > 0) {
+    updates.charNameCN = [...charAliasSet][0]
+    updates.charAliases = [...charAliasSet]
+  }
+
+  return updates
+}
 
 async function main() {
   console.log('=== 缓存 → 服务器 Qdrant + MongoDB ===\n')
@@ -35,20 +87,26 @@ async function main() {
   let qdrantInserted = 0
   for (let i = 0; i < cached.length; i += QDRANT_BATCH) {
     const batch = cached.slice(i, i + QDRANT_BATCH)
-    const points = batch.map((c: any, idx: number) => ({
-      id: i + idx + 1,
-      vector: c.embedding,
-      payload: {
-        content: c.content,
-        dedupKey: c.dedupKey,
-        type: c.metadata.type,
-        source: c.metadata.source,
-        gameName: c.metadata.gameName || '',
-        charName: c.metadata.charName || '',
-        chunkIndex: c.metadata.chunkIndex ?? -1,
-        totalChunks: c.metadata.totalChunks ?? -1,
-      },
-    }))
+    const points = batch.map((c: any, idx: number) => {
+      const gameName = c.metadata.gameName || ''
+      const charName = c.metadata.charName || ''
+      const aliases = computeNameAliases(gameName, charName)
+      return {
+        id: i + idx + 1,
+        vector: c.embedding,
+        payload: {
+          content: c.content,
+          dedupKey: c.dedupKey,
+          type: c.metadata.type,
+          source: c.metadata.source,
+          gameName,
+          charName,
+          chunkIndex: c.metadata.chunkIndex ?? -1,
+          totalChunks: c.metadata.totalChunks ?? -1,
+          ...aliases,
+        },
+      }
+    })
     await upsertBatch(points)
     qdrantInserted += batch.length
     console.log(`  Qdrant 进度: ${Math.min(i + QDRANT_BATCH, cached.length)}/${cached.length}`)

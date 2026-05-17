@@ -53,6 +53,7 @@ export interface CharacterInfo {
   imageUrl: string
   cvName: string
   subjectId: number // 所属游戏 ID
+  relation: string  // 主角 / 配角 / 空
 }
 
 export interface CrawlResult {

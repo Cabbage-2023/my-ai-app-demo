@@ -96,6 +96,7 @@ async function main() {
               imageUrl: c.images?.medium ?? c.images?.large ?? '',
               cvName: c.actors?.[0]?.name ?? '',
               subjectId: game.id,
+              relation: c.relation ?? '',
             }
             if (ci < MAX_DETAIL_CHARS) {
               try {

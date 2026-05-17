@@ -6,6 +6,7 @@ export function parseCharacterDetailFromAPI(
   id: number,
   data: any,
   subjectId: number,
+  relation?: string,
 ): CharacterInfo {
   const name = data.name ?? ''
   const nameCN = data.name_cn ?? ''
@@ -29,6 +30,7 @@ export function parseCharacterDetailFromAPI(
   return {
     id, name, nameCN, summary, gender,
     birthYear, birthMon, birthDay, imageUrl, cvName, subjectId,
+    relation: relation ?? '',
   }
 }
 
