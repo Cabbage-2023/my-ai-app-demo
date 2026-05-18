@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer'
+import type { Page } from 'puppeteer'
 import path from 'node:path'
 import { writeFile, mkdir } from 'node:fs/promises'
 import { saveCookies, getCookiePath } from '../lib/crawl/cookie-manager'
@@ -97,7 +98,7 @@ async function main() {
 
   let tick = 0
   setInterval(async () => {
-    let freshPage: puppeteer.Page | null = null
+    let freshPage: Page | null = null
     try {
       freshPage = await browser.newPage()
       await freshPage.goto('https://bangumi.tv', { waitUntil: 'domcontentloaded', timeout: 15000 })

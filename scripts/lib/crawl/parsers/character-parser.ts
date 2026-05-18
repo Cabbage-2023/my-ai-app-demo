@@ -90,5 +90,6 @@ export function parseCharacterDetail(
     imageUrl,
     cvName,
     subjectId,
+    relation: '',
   }
 }

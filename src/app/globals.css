@@ -1,26 +1,84 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
+/* ── Tailwind v4 暗色模式改为 class-based ── */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── 亮色主题变量 ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-surface: #ffffff;
+  --color-subtle: #f0f5f5;
+  --color-miku: #39C5BB;
+  --color-miku-dark: #2A9E96;
+  --color-miku-light: #7EDCD6;
+  --color-fg: #171717;
+  --color-fg-secondary: #666666;
+  --color-fg-muted: #999999;
+  --color-border: #d0d5d5;
+  --color-prose-bg: #f8f9fa;
 }
 
+/* ── 暗色主题变量 ── */
+.dark {
+  --color-surface: #262a2a;
+  --color-subtle: #1a1d1d;
+  --color-miku: #4DD9CF;
+  --color-miku-dark: #39C5BB;
+  --color-fg: #e5e5e5;
+  --color-fg-secondary: #aaaaaa;
+  --color-fg-muted: #777777;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-prose-bg: #323636;
+}
+
+/* ── Tailwind 主题 tokens ── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-surface: var(--color-surface);
+  --color-subtle: var(--color-subtle);
+  --color-miku: var(--color-miku);
+  --color-miku-dark: var(--color-miku-dark);
+  --color-miku-light: var(--color-miku-light);
+  --color-fg: var(--color-fg);
+  --color-fg-secondary: var(--color-fg-secondary);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-border: var(--color-border);
+  --color-prose-bg: var(--color-prose-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--color-subtle);
+  color: var(--color-fg);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  transition: background 0.2s, color 0.2s;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* ── 桌面端滚动条 ── */
+@media (hover: hover) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-fg-muted);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-fg-secondary);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Markdown prose 暗色适配 ── */
+.dark .prose {
+  --tw-prose-body: var(--color-fg);
+  --tw-prose-headings: var(--color-fg);
+  --tw-prose-bold: var(--color-fg);
+  --tw-prose-code: var(--color-fg);
+  --tw-prose-pre-bg: var(--color-prose-bg);
+  --tw-prose-code-bg: rgba(255, 255, 255, 0.05);
 }
