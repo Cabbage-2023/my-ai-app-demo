@@ -5,6 +5,16 @@
 const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:3933'
 const COLLECTION = 'resources'
 
+export interface QdrantCondition {
+  key: string
+  match: { value: string }
+}
+
+export interface QdrantFilter {
+  must?: QdrantCondition[]
+  should?: QdrantCondition[]
+}
+
 export interface QdrantSearchResult {
   content: string
   metadata: Record<string, any>
@@ -34,16 +44,16 @@ export async function upsertPoint(
 export async function searchSimilar(
   vector: number[],
   limit = 3,
+  filter?: QdrantFilter,
 ): Promise<QdrantSearchResult[]> {
   const url = `${QDRANT_URL}/collections/${COLLECTION}/points/search`
+  const body: Record<string, any> = { vector, limit, with_payload: true }
+  if (filter) body.filter = filter
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      vector,
-      limit,
-      with_payload: true,
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {
@@ -59,6 +69,7 @@ export async function searchSimilar(
       source: r.payload.source || '',
       gameName: r.payload.gameName || '',
       charName: r.payload.charName || '',
+      filter: filter ? JSON.stringify(filter) : '',
     },
     score: r.score,
   }))

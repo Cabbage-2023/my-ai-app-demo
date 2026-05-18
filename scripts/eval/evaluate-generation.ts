@@ -115,8 +115,62 @@ async function saveToCache(key: string, value: string): Promise<void> {
 
 async function searchAndAssemble(qa: QAPair): Promise<string> {
   const embedding = await generateEmbedding(qa.question)
-  const limit = qa.category === 'comparison' ? 10 : TOP_K
-  const results = await qdrantSearch(embedding, { limit })
+
+  // 构建自查询 filter
+  let results: Awaited<ReturnType<typeof qdrantSearch>>
+
+  if (qa.category === 'comparison' && qa.expects && qa.expects.length > 1) {
+    // 对比类多路召回 + round-robin 交错合并
+    const gamesResults: Awaited<ReturnType<typeof qdrantSearch>>[] = []
+    const seenIds = new Set<number>()
+    for (const e of qa.expects) {
+      if (!e.gameName) continue
+      const conditions: Record<string, any>[] = [
+        { key: 'gameName', match: { value: e.gameName } },
+        { key: 'gameAliases', match: { value: e.gameName } },
+      ]
+      const gameFilter = { must: [{ min_should: { conditions, min_count: 1 } }] }
+      gamesResults.push(await qdrantSearch(embedding, { limit: 10, filter: gameFilter }))
+    }
+    const merged: Awaited<ReturnType<typeof qdrantSearch>> = []
+    const cursors = new Array(gamesResults.length).fill(0)
+    while (merged.length < 30) {
+      let added = false
+      for (let g = 0; g < gamesResults.length; g++) {
+        const list = gamesResults[g]
+        while (cursors[g] < list.length) {
+          const r = list[cursors[g]++]
+          if (!seenIds.has(r.id)) {
+            seenIds.add(r.id)
+            merged.push(r)
+            added = true
+            break
+          }
+        }
+      }
+      if (!added) break
+    }
+    results = merged
+  } else {
+    let filter: Record<string, any> | undefined
+    const must: Record<string, any>[] = []
+    if (qa.expectType) must.push({ key: 'type', match: { value: qa.expectType } })
+    const nameConditions: Record<string, any>[] = []
+    if (qa.expect.gameName) {
+      nameConditions.push({ key: 'gameName', match: { value: qa.expect.gameName } })
+      nameConditions.push({ key: 'gameAliases', match: { value: qa.expect.gameName } })
+    }
+    if (qa.expect.charName) {
+      nameConditions.push({ key: 'charName', match: { value: qa.expect.charName } })
+      nameConditions.push({ key: 'charNameCN', match: { value: qa.expect.charName } })
+      nameConditions.push({ key: 'charAliases', match: { value: qa.expect.charName } })
+    }
+    if (nameConditions.length > 0) {
+      must.push({ min_should: { conditions: nameConditions, min_count: 1 } })
+    }
+    if (must.length > 0) filter = { must }
+    results = await qdrantSearch(embedding, { limit: TOP_K, filter })
+  }
 
   const chunks: string[] = []
   for (let i = 0; i < results.length; i++) {

@@ -72,13 +72,49 @@ export async function POST(req: Request) {
       }),
 
       getInformation: tool({
-        description: '从知识库中检索与问题相关的信息。当你需要回忆知识库内容时调用',
+        description: '从知识库中检索与问题相关的信息。当你需要回忆知识库内容时调用。'
+          + '对于对比类问题（比较多个游戏/角色），应使用 filter.type=["game_intro"] 缩小范围；'
+          + '对于特定游戏的问题，应使用 filter.gameName 精确定位',
         inputSchema: z.object({
           question: z.string().describe('要检索的问题'),
+          filter: z.object({
+            type: z.union([z.string(), z.array(z.string())]).optional()
+              .describe('过滤类型：单个类型用字符串，多个类型用数组（OR 语义）'),
+            gameName: z.string().optional().describe('游戏名称（精确匹配）'),
+            charName: z.string().optional().describe('角色名称（精确匹配）'),
+          }).optional().describe('检索过滤条件（可选），用于缩小检索范围'),
         }),
-        execute: async ({ question }) => {
+        execute: async ({ question, filter: inputFilter }) => {
           const embedding = await generateEmbedding(question);
-          const results = await searchSimilar(embedding, 3);
+
+          // 转换 filter 格式
+          let qdrantFilter: import('@/lib/qdrant').QdrantFilter | undefined
+          if (inputFilter) {
+            const must: import('@/lib/qdrant').QdrantCondition[] = []
+            const should: import('@/lib/qdrant').QdrantCondition[] = []
+
+            if (typeof inputFilter.type === 'string') {
+              must.push({ key: 'type', match: { value: inputFilter.type } })
+            } else if (Array.isArray(inputFilter.type)) {
+              for (const t of inputFilter.type) {
+                should.push({ key: 'type', match: { value: t } })
+              }
+            }
+            if (inputFilter.gameName) {
+              must.push({ key: 'gameName', match: { value: inputFilter.gameName } })
+            }
+            if (inputFilter.charName) {
+              must.push({ key: 'charName', match: { value: inputFilter.charName } })
+            }
+
+            if (must.length > 0 || should.length > 0) {
+              qdrantFilter = {}
+              if (must.length > 0) qdrantFilter.must = must
+              if (should.length > 0) qdrantFilter.should = should
+            }
+          }
+
+          const results = await searchSimilar(embedding, 3, qdrantFilter);
           return results.map(r => ({ content: r.content, metadata: r.metadata }));
         },
       }),

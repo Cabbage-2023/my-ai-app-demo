@@ -102,6 +102,78 @@ const baselineStrategy: StrategyFn = async (qa) => {
   return { strictIndex, fuzzyIndex, top5, strictPositions, fuzzyPositions }
 }
 
+/** 自查询检索策略 V2：must + min_should condition 带别名展开 */
+const selfQueryingStrategy: StrategyFn = async (qa) => {
+  const embedding = await generateEmbedding(qa.question)
+
+  let filter: Record<string, any> | undefined
+
+  if (qa.category === 'comparison' && qa.expects && qa.expects.length > 1) {
+    // 对比类多路召回：每个游戏单独搜索，round-robin 交错合并保均衡
+    const gamesResults: QdrantSearchResult[][] = []
+    const seenIds = new Set<number>()
+
+    for (const e of qa.expects) {
+      if (!e.gameName) continue
+      const conditions: Record<string, any>[] = [
+        { key: 'gameName', match: { value: e.gameName } },
+        { key: 'gameAliases', match: { value: e.gameName } },
+      ]
+      const gameFilter = { must: [{ min_should: { conditions, min_count: 1 } }] }
+      const results = await search(embedding, { limit: 10, filter: gameFilter })
+      gamesResults.push(results)
+    }
+
+    // Round-robin 交错合并：每次从每个游戏中取下一个未见过的最佳结果
+    const allResults: QdrantSearchResult[] = []
+    const cursors = new Array(gamesResults.length).fill(0)
+    while (allResults.length < 30) {
+      let added = false
+      for (let g = 0; g < gamesResults.length; g++) {
+        const list = gamesResults[g]
+        while (cursors[g] < list.length) {
+          const r = list[cursors[g]++]
+          if (!seenIds.has(r.id)) {
+            seenIds.add(r.id)
+            allResults.push(r)
+            added = true
+            break
+          }
+        }
+      }
+      if (!added) break
+    }
+
+    const { strictIndex, fuzzyIndex, top5, strictPositions, fuzzyPositions } = analyzeResults(allResults, qa.expect, qa.expects)
+    return { strictIndex, fuzzyIndex, top5, strictPositions, fuzzyPositions }
+  } else {
+    const must: Record<string, any>[] = []
+    if (qa.expectType) must.push({ key: 'type', match: { value: qa.expectType } })
+
+    // 对 gameName/charName 构建 OR 条件（含别名）
+    const nameConditions: Record<string, any>[] = []
+    if (qa.expect.gameName) {
+      nameConditions.push({ key: 'gameName', match: { value: qa.expect.gameName } })
+      nameConditions.push({ key: 'gameAliases', match: { value: qa.expect.gameName } })
+    }
+    if (qa.expect.charName) {
+      nameConditions.push({ key: 'charName', match: { value: qa.expect.charName } })
+      nameConditions.push({ key: 'charNameCN', match: { value: qa.expect.charName } })
+      nameConditions.push({ key: 'charAliases', match: { value: qa.expect.charName } })
+    }
+    if (nameConditions.length > 0) {
+      must.push({ min_should: { conditions: nameConditions, min_count: 1 } })
+    }
+
+    if (must.length > 0) filter = { must }
+  }
+
+  const limit = qa.category === 'comparison' ? 20 : 10
+  const results = await search(embedding, { limit, filter })
+  const { strictIndex, fuzzyIndex, top5, strictPositions, fuzzyPositions } = analyzeResults(results, qa.expect, qa.expects)
+  return { strictIndex, fuzzyIndex, top5, strictPositions, fuzzyPositions }
+}
+
 // ============================================================
 // 3. 匹配与指标计算
 // ============================================================
@@ -225,8 +297,8 @@ function calcExtraMetrics(top5: Top5Item[], theme: string, category: string, exp
   const precision1 = theme && top5.length >= 1 ? top5.slice(0, 1).filter(t => themeMatch(t, theme, category)).length / 1 : 0
   const precision3 = theme && top5.length >= 3 ? top5.slice(0, 3).filter(t => themeMatch(t, theme, category)).length / 3 : 0
   const precision5 = theme && top5.length >= 5 ? top5.slice(0, 5).filter(t => themeMatch(t, theme, category)).length / 5 : 0
-  const typeAccuracy = expectType && top5.length >= 5
-    ? top5.slice(0, 5).filter(t => t.type === expectType).length / 5
+  const typeAccuracy = expectType && top5.length > 0
+    ? top5.slice(0, 5).filter(t => t.type === expectType).length / Math.min(5, top5.length)
     : 0
   const diversity = new Set(top5.filter(t => t.gameName).map(t => t.gameName)).size
   return { precision1, precision3, precision5, typeAccuracy, diversity }
@@ -419,6 +491,7 @@ async function main() {
 
   const strategies: { name: string; fn: StrategyFn }[] = [
     { name: '纯向量搜索', fn: baselineStrategy },
+    { name: '自查询检索', fn: selfQueryingStrategy },
   ]
 
   const results: StrategyResult[] = []

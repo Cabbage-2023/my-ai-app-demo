@@ -1,0 +1,1565 @@
+{
+  "date": "2026-05-18T03:57:35.062Z",
+  "totalPairs": 150,
+  "strategy": "纯向量搜索",
+  "metrics": {
+    "all": {
+      "strict": {
+        "hitRate1": 0.58,
+        "hitRate3": 0.7266666666666667,
+        "hitRate5": 0.8066666666666666,
+        "mrr": 0.6798721152142206,
+        "totalHits": 136,
+        "count": 150,
+        "precision1": 0.7266666666666667,
+        "precision3": 0.68,
+        "precision5": 0.6359999999999999,
+        "typeAccuracy": 0.004000000000000001,
+        "diversity": 2.1333333333333333
+      },
+      "fuzzy": {
+        "hitRate1": 0.7466666666666667,
+        "hitRate3": 0.8666666666666667,
+        "hitRate5": 0.9533333333333334,
+        "mrr": 0.8273333333333335,
+        "totalHits": 146,
+        "count": 150,
+        "precision1": 0.7266666666666667,
+        "precision3": 0.68,
+        "precision5": 0.6359999999999999,
+        "typeAccuracy": 0.004000000000000001,
+        "diversity": 2.1333333333333333
+      }
+    },
+    "fact": {
+      "strict": {
+        "hitRate1": 0.8,
+        "hitRate3": 0.96,
+        "hitRate5": 0.96,
+        "mrr": 0.8733333333333334,
+        "totalHits": 24,
+        "count": 25,
+        "precision1": 0.76,
+        "precision3": 0.76,
+        "precision5": 0.6960000000000001,
+        "typeAccuracy": 0.024000000000000004,
+        "diversity": 1.68
+      },
+      "fuzzy": {
+        "hitRate1": 0.88,
+        "hitRate3": 0.96,
+        "hitRate5": 1,
+        "mrr": 0.93,
+        "totalHits": 25,
+        "count": 25,
+        "precision1": 0.76,
+        "precision3": 0.76,
+        "precision5": 0.6960000000000001,
+        "typeAccuracy": 0.024000000000000004,
+        "diversity": 1.68
+      }
+    },
+    "opinion": {
+      "strict": {
+        "hitRate1": 0.66,
+        "hitRate3": 0.79,
+        "hitRate5": 0.85,
+        "mrr": 0.7430277777777777,
+        "totalHits": 88,
+        "count": 100,
+        "precision1": 0.75,
+        "precision3": 0.6833333333333331,
+        "precision5": 0.65,
+        "typeAccuracy": 0,
+        "diversity": 2.13
+      },
+      "fuzzy": {
+        "hitRate1": 0.78,
+        "hitRate3": 0.91,
+        "hitRate5": 0.96,
+        "mrr": 0.8536666666666668,
+        "totalHits": 96,
+        "count": 100,
+        "precision1": 0.75,
+        "precision3": 0.6833333333333331,
+        "precision5": 0.65,
+        "typeAccuracy": 0,
+        "diversity": 2.13
+      }
+    },
+    "comparison": {
+      "strict": {
+        "hitRate1": 0.04,
+        "hitRate3": 0.24,
+        "hitRate5": 0.48,
+        "mrr": 0.23378824684087846,
+        "totalHits": 24,
+        "count": 25,
+        "precision1": 0.6,
+        "precision3": 0.5866666666666666,
+        "precision5": 0.5199999999999999,
+        "typeAccuracy": 0,
+        "diversity": 2.6
+      },
+      "fuzzy": {
+        "hitRate1": 0.48,
+        "hitRate3": 0.6,
+        "hitRate5": 0.88,
+        "mrr": 0.6193333333333332,
+        "totalHits": 25,
+        "count": 25,
+        "precision1": 0.6,
+        "precision3": 0.5866666666666666,
+        "precision5": 0.5199999999999999,
+        "typeAccuracy": 0,
+        "diversity": 2.6
+      }
+    }
+  },
+  "detail": [
+    {
+      "id": "F01",
+      "category": "fact",
+      "question": "古河渚是个什么样的人",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F02",
+      "category": "fact",
+      "question": "坂上智代是什么样的女孩",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F03",
+      "category": "fact",
+      "question": "水上由岐的角色介绍",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "F04",
+      "category": "fact",
+      "question": "命运石之门是什么样的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F05",
+      "category": "fact",
+      "question": "沙耶之歌是什么样的作品",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F06",
+      "category": "fact",
+      "question": "魔法使之夜的剧情简介",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F07",
+      "category": "fact",
+      "question": "装甲恶鬼村正是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F08",
+      "category": "fact",
+      "question": "Muv-Luv Alternative 是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F09",
+      "category": "fact",
+      "question": "CLANNAD 的故事背景",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F10",
+      "category": "fact",
+      "question": "樱之诗是什么类型的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F11",
+      "category": "fact",
+      "question": "夏日口袋是什么样的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F12",
+      "category": "fact",
+      "question": "白色相簿2序章讲了什么",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F13",
+      "category": "fact",
+      "question": "秋之回忆2是什么游戏",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F14",
+      "category": "fact",
+      "question": "美好的每一天是什么样的游戏",
+      "strictIndex": -1,
+      "fuzzyIndex": 3
+    },
+    {
+      "id": "F15",
+      "category": "fact",
+      "question": "人狼村之谜是什么类型的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F16",
+      "category": "fact",
+      "question": "五彩斑斓的世界是什么样的游戏",
+      "strictIndex": 2,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "F17",
+      "category": "fact",
+      "question": "丸子与银河龙是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F18",
+      "category": "fact",
+      "question": "月姬是什么样的作品",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F19",
+      "category": "fact",
+      "question": "多娜多娜一起干坏事吧是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F20",
+      "category": "fact",
+      "question": "潜伏之赤途是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F21",
+      "category": "fact",
+      "question": "星之终途是什么样的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F22",
+      "category": "fact",
+      "question": "樱花萌放是什么类型的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F23",
+      "category": "fact",
+      "question": "恋狱月狂病是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F24",
+      "category": "fact",
+      "question": "青空下的约定是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "F25",
+      "category": "fact",
+      "question": "我们没有翅膀是什么游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O01",
+      "category": "opinion",
+      "question": "古河渚为什么这么多人喜欢",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O02",
+      "category": "opinion",
+      "question": "玩过白色相簿2的来说说冬马和纱",
+      "strictIndex": -1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O03",
+      "category": "opinion",
+      "question": "大家对坂上智代什么看法",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O04",
+      "category": "opinion",
+      "question": "小木曾雪菜的性格怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O05",
+      "category": "opinion",
+      "question": "介绍 Saber 这个角色",
+      "strictIndex": -1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O06",
+      "category": "opinion",
+      "question": "牧濑红莉栖是个什么样的角色",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O07",
+      "category": "opinion",
+      "question": "北原春希这个人怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O08",
+      "category": "opinion",
+      "question": "说说阿万音铃羽这个角色",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O09",
+      "category": "opinion",
+      "question": "北条沙都子在寒蝉里是什么角色",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O10",
+      "category": "opinion",
+      "question": "两仪式的性格特点是什么",
+      "strictIndex": -1,
+      "fuzzyIndex": 2
+    },
+    {
+      "id": "O11",
+      "category": "opinion",
+      "question": "琥珀和翡翠是什么样的角色",
+      "strictIndex": 7,
+      "fuzzyIndex": 2
+    },
+    {
+      "id": "O12",
+      "category": "opinion",
+      "question": "大家对 Shiroyasha 什么看法",
+      "strictIndex": -1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O13",
+      "category": "opinion",
+      "question": "CLANNAD 哪个情节最催泪",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O14",
+      "category": "opinion",
+      "question": "白色相簿2的剧情到底有多虐",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O15",
+      "category": "opinion",
+      "question": "玩过命运石之门的来说说剧情怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O16",
+      "category": "opinion",
+      "question": "素晴日的哲学引用到底是不是掉书袋",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O17",
+      "category": "opinion",
+      "question": "魔法使之夜的演出效果怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O18",
+      "category": "opinion",
+      "question": "装甲恶鬼村正的善恶观讲什么",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O19",
+      "category": "opinion",
+      "question": "沙耶之歌的猎奇会不会劝退",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O20",
+      "category": "opinion",
+      "question": "评价一下秽翼的尤斯蒂娅",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O21",
+      "category": "opinion",
+      "question": "兰斯10的玩法怎么样",
+      "strictIndex": 4,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O22",
+      "category": "opinion",
+      "question": "Muv-Luv Alternative 的剧情有多震撼",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O23",
+      "category": "opinion",
+      "question": "十三机兵防卫圈的剧情到底有多神",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O24",
+      "category": "opinion",
+      "question": "人狼村之谜的推理质量怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O25",
+      "category": "opinion",
+      "question": "传颂之物虚伪的假面值得玩吗",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O26",
+      "category": "opinion",
+      "question": "夏日口袋的剧情怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O27",
+      "category": "opinion",
+      "question": "天津罪这部作品的评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O28",
+      "category": "opinion",
+      "question": "死月妖花是什么类型的游戏",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O29",
+      "category": "opinion",
+      "question": "海猫鸣泣之时的推理能信吗",
+      "strictIndex": 8,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O30",
+      "category": "opinion",
+      "question": "苍之彼方的四重奏好玩吗",
+      "strictIndex": -1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O31",
+      "category": "opinion",
+      "question": "Rewrite 这游戏怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O32",
+      "category": "opinion",
+      "question": "车轮之国向日葵的少女剧情如何",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O33",
+      "category": "opinion",
+      "question": "纸上的魔法使值得玩吗",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O34",
+      "category": "opinion",
+      "question": "金辉恋曲四重奏好不好玩",
+      "strictIndex": -1,
+      "fuzzyIndex": -1
+    },
+    {
+      "id": "O35",
+      "category": "opinion",
+      "question": "美好的每一天的哲学主题是什么",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O36",
+      "category": "opinion",
+      "question": "兰斯系列的 gameplay 怎么样",
+      "strictIndex": 3,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O37",
+      "category": "opinion",
+      "question": "FLOWERS 系列值得入坑吗",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O38",
+      "category": "opinion",
+      "question": "交响乐之雨的音乐怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O39",
+      "category": "opinion",
+      "question": "大图书馆的牧羊人好玩吗",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O40",
+      "category": "opinion",
+      "question": "奇异恩典圣夜的小镇评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O41",
+      "category": "opinion",
+      "question": "灰色乐园剧情深度如何",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O42",
+      "category": "opinion",
+      "question": "King Exit 和 Demons Roots 哪个剧情好",
+      "strictIndex": 4,
+      "fuzzyIndex": 4
+    },
+    {
+      "id": "O43",
+      "category": "opinion",
+      "question": "Demons Roots 这游戏怎么样",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O44",
+      "category": "opinion",
+      "question": "Rance 系列入坑推荐哪个",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O45",
+      "category": "opinion",
+      "question": "柚子社有哪些作品推荐",
+      "strictIndex": -1,
+      "fuzzyIndex": -1
+    },
+    {
+      "id": "O46",
+      "category": "opinion",
+      "question": "拔作岛这游戏到底在讲什么",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O47",
+      "category": "opinion",
+      "question": "求推荐类似 CLANNAD 的催泪游戏",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O48",
+      "category": "opinion",
+      "question": "秋之回忆系列哪些作品值得玩",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O49",
+      "category": "opinion",
+      "question": "为什么白色相簿2被称为脱宅神作",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O50",
+      "category": "opinion",
+      "question": "有哪些剧情好的Galgame推荐",
+      "strictIndex": 3,
+      "fuzzyIndex": 3
+    },
+    {
+      "id": "O51",
+      "category": "opinion",
+      "question": "评价一下这个游戏的音乐和画面",
+      "strictIndex": -1,
+      "fuzzyIndex": -1
+    },
+    {
+      "id": "O52",
+      "category": "opinion",
+      "question": "求推荐剧情深刻的视觉小说",
+      "strictIndex": -1,
+      "fuzzyIndex": -1
+    },
+    {
+      "id": "O53",
+      "category": "opinion",
+      "question": "有没有黑长直女主的Galgame推荐",
+      "strictIndex": -1,
+      "fuzzyIndex": 3
+    },
+    {
+      "id": "O54",
+      "category": "opinion",
+      "question": "玩过白色相簿2的来说说感受",
+      "strictIndex": 5,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O55",
+      "category": "opinion",
+      "question": "变态监狱到底有多搞笑",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O56",
+      "category": "opinion",
+      "question": "多娜多娜的玩法怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O57",
+      "category": "opinion",
+      "question": "月姬remake的评价怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O58",
+      "category": "opinion",
+      "question": "弹丸论破的推理系统怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O59",
+      "category": "opinion",
+      "question": "极限脱出999的解谜难吗",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O60",
+      "category": "opinion",
+      "question": "悠久之翼到底有多催泪",
+      "strictIndex": -1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O61",
+      "category": "opinion",
+      "question": "五彩斑斓的世界这个系列怎么样",
+      "strictIndex": 3,
+      "fuzzyIndex": 3
+    },
+    {
+      "id": "O62",
+      "category": "opinion",
+      "question": "天鹅之歌这种悲剧题材值得玩吗",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O63",
+      "category": "opinion",
+      "question": "暗之部屋的氛围感如何",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O64",
+      "category": "opinion",
+      "question": "水仙2的剧情怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O65",
+      "category": "opinion",
+      "question": "初雪樱值得玩吗",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O66",
+      "category": "opinion",
+      "question": "从晴朗的朝色泛起之际开始的评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O67",
+      "category": "opinion",
+      "question": "星空的记忆这游戏怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O68",
+      "category": "opinion",
+      "question": "我们没有翅膀的剧情结构",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O69",
+      "category": "opinion",
+      "question": "腐姬的剧情到底有多致郁",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O70",
+      "category": "opinion",
+      "question": "美少女万华镜理与迷宫的少女评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O71",
+      "category": "opinion",
+      "question": "甜蜜女友2的恋爱描写怎么样",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O72",
+      "category": "opinion",
+      "question": "遥仰凰华的游戏评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O73",
+      "category": "opinion",
+      "question": "青空下的约定的多线剧情怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O74",
+      "category": "opinion",
+      "question": "黄昏的禁忌之药的评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O75",
+      "category": "opinion",
+      "question": "流景之海的艾佩理雅的诡计设计",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O76",
+      "category": "opinion",
+      "question": "星之终途这游戏的背景设定",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O77",
+      "category": "opinion",
+      "question": "星空列车与白的旅行评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O78",
+      "category": "opinion",
+      "question": "战女神ZERO的游戏性怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O79",
+      "category": "opinion",
+      "question": "神采炼金大师的耐玩度",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O80",
+      "category": "opinion",
+      "question": "魔导巧壳的战略要素怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O81",
+      "category": "opinion",
+      "question": "天之少女作为系列收官怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O82",
+      "category": "opinion",
+      "question": "女仆咖啡帕露菲的评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O83",
+      "category": "opinion",
+      "question": "家族计划再开的剧情如何",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O84",
+      "category": "opinion",
+      "question": "梦见之药的剧情深度",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O85",
+      "category": "opinion",
+      "question": "赫炎的印加诺克的黑暗风格如何",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O86",
+      "category": "opinion",
+      "question": "离开人们的是什么类型的作品",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O87",
+      "category": "opinion",
+      "question": "终之空remake和素晴日比怎么样",
+      "strictIndex": 1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O88",
+      "category": "opinion",
+      "question": "抬头看看吧看那天上的繁星怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O89",
+      "category": "opinion",
+      "question": "野良与皇女与流浪猫之心的评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O90",
+      "category": "opinion",
+      "question": "ISLAND 的剧情评价",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O91",
+      "category": "opinion",
+      "question": "Kanon 的催泪程度怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O92",
+      "category": "opinion",
+      "question": "秋之回忆系列最推荐哪一部",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "O93",
+      "category": "opinion",
+      "question": "纸魔和冥契的牧神节哪个更值得玩",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O94",
+      "category": "opinion",
+      "question": "BLACKSOULS 的剧情怎么样",
+      "strictIndex": 3,
+      "fuzzyIndex": 3
+    },
+    {
+      "id": "O95",
+      "category": "opinion",
+      "question": "VA-11 HALL-A 的剧情和氛围",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O96",
+      "category": "opinion",
+      "question": "极限脱出系列的叙事诡计",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O97",
+      "category": "opinion",
+      "question": "圣诞之吻的各种女主攻略感觉",
+      "strictIndex": -1,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O98",
+      "category": "opinion",
+      "question": "FLOWERS 秋篇的剧情深度",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O99",
+      "category": "opinion",
+      "question": "妹相随黑白世界的缤纷冒险怎么样",
+      "strictIndex": 0,
+      "fuzzyIndex": 0
+    },
+    {
+      "id": "O100",
+      "category": "opinion",
+      "question": "BALDR SKY的游戏性和剧情平衡",
+      "strictIndex": 1,
+      "fuzzyIndex": 1
+    },
+    {
+      "id": "C01",
+      "category": "comparison",
+      "question": "白色相簿2和CLANNAD哪个更感人",
+      "strictIndex": 18,
+      "fuzzyIndex": 1,
+      "strictPositions": [
+        18,
+        2
+      ],
+      "fuzzyPositions": [
+        0,
+        1
+      ],
+      "expects": [
+        {
+          "gameName": "白色相簿2 终章"
+        },
+        {
+          "gameName": "CLANNAD"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "category": "comparison",
+      "question": "樱之诗和樱之刻哪个好",
+      "strictIndex": 9,
+      "fuzzyIndex": 1,
+      "strictPositions": [
+        9,
+        0
+      ],
+      "fuzzyPositions": [
+        1,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "樱之诗"
+        },
+        {
+          "gameName": "樱之刻"
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "category": "comparison",
+      "question": "秋之回忆1和2哪个值得玩",
+      "strictIndex": 0,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        0,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "秋之回忆"
+        },
+        {
+          "gameName": "秋之回忆2"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "category": "comparison",
+      "question": "海猫和寒蝉哪个推理更强",
+      "strictIndex": 3,
+      "fuzzyIndex": 3,
+      "strictPositions": [
+        1,
+        3
+      ],
+      "fuzzyPositions": [
+        0,
+        3
+      ],
+      "expects": [
+        {
+          "gameName": "寒蝉鸣泣之时"
+        },
+        {
+          "gameName": "海猫鸣泣之时"
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "category": "comparison",
+      "question": "传颂之物三部曲按什么顺序玩",
+      "strictIndex": 5,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        1,
+        5,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "传颂之物-虚伪的假面-"
+        },
+        {
+          "gameName": "传颂之物 致逝者的摇篮曲"
+        },
+        {
+          "gameName": "传颂之物-二人之白皇-"
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "category": "comparison",
+      "question": "壳之少女和虚之少女哪个更值得推",
+      "strictIndex": 4,
+      "fuzzyIndex": 3,
+      "strictPositions": [
+        4,
+        0
+      ],
+      "fuzzyPositions": [
+        3,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "壳之少女"
+        },
+        {
+          "gameName": "虚之少女"
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "category": "comparison",
+      "question": "兰斯03和兰斯10先玩哪个",
+      "strictIndex": 10,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        10,
+        2
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "兰斯03 利萨斯陷落"
+        },
+        {
+          "gameName": "兰斯10 决战"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "category": "comparison",
+      "question": "战国兰斯和兰斯10哪个更值得玩",
+      "strictIndex": 2,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        2,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "战国兰斯"
+        },
+        {
+          "gameName": "兰斯10 决战"
+        }
+      ]
+    },
+    {
+      "id": "C09",
+      "category": "comparison",
+      "question": "恋狱月狂病和壳之少女哪个更值得推",
+      "strictIndex": 10,
+      "fuzzyIndex": 3,
+      "strictPositions": [
+        0,
+        10
+      ],
+      "fuzzyPositions": [
+        0,
+        3
+      ],
+      "expects": [
+        {
+          "gameName": "恋狱～月狂病～"
+        },
+        {
+          "gameName": "壳之少女"
+        }
+      ]
+    },
+    {
+      "id": "C10",
+      "category": "comparison",
+      "question": "苍之彼方的四重奏本篇和 EXTRA2 区别",
+      "strictIndex": -1,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        -1,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "苍之彼方的四重奏"
+        },
+        {
+          "gameName": "苍之彼方的四重奏 EXTRA2"
+        }
+      ]
+    },
+    {
+      "id": "C11",
+      "category": "comparison",
+      "question": "King Exit 和 Demons Roots 哪个剧情好",
+      "strictIndex": 4,
+      "fuzzyIndex": 4,
+      "strictPositions": [
+        4,
+        0
+      ],
+      "fuzzyPositions": [
+        4,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "King Exit"
+        },
+        {
+          "gameName": "Demons Roots"
+        }
+      ]
+    },
+    {
+      "id": "C12",
+      "category": "comparison",
+      "question": "白色相簿2序章和终章的区别",
+      "strictIndex": 1,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        1,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "白色相簿2 序章"
+        },
+        {
+          "gameName": "白色相簿2 终章"
+        }
+      ]
+    },
+    {
+      "id": "C13",
+      "category": "comparison",
+      "question": "时钟机关的Ley-line系列游戏顺序",
+      "strictIndex": 1,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        0,
+        1
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "时钟机关的Ley-line-朝雾中飘零之花-"
+        },
+        {
+          "gameName": "时钟机关的Ley-line-残影之夜将明时-"
+        }
+      ]
+    },
+    {
+      "id": "C14",
+      "category": "comparison",
+      "question": "FLOWERS 夏篇和秋篇哪个好",
+      "strictIndex": 2,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        2,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "FLOWERS 夏篇"
+        },
+        {
+          "gameName": "FLOWERS 秋篇"
+        }
+      ]
+    },
+    {
+      "id": "C15",
+      "category": "comparison",
+      "question": "BALDR SKY 和 BALDR HEART 哪个更好",
+      "strictIndex": 7,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        7,
+        3
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "BALDR SKY Dive2 \"RECORDARE\""
+        },
+        {
+          "gameName": "BALDR HEART"
+        }
+      ]
+    },
+    {
+      "id": "C16",
+      "category": "comparison",
+      "question": "命运石之门和 Remember11 的悬疑设计",
+      "strictIndex": 5,
+      "fuzzyIndex": 5,
+      "strictPositions": [
+        1,
+        5
+      ],
+      "fuzzyPositions": [
+        1,
+        5
+      ],
+      "expects": [
+        {
+          "gameName": "命运石之门"
+        },
+        {
+          "gameName": "Remember11：无限轮回的时光"
+        }
+      ]
+    },
+    {
+      "id": "C17",
+      "category": "comparison",
+      "question": "金辉恋曲四重奏本篇和 Golden Time 区别",
+      "strictIndex": 1,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        0,
+        1
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "金辉恋曲四重奏"
+        },
+        {
+          "gameName": "金辉恋曲四重奏 -Golden Time-"
+        }
+      ]
+    },
+    {
+      "id": "C18",
+      "category": "comparison",
+      "question": "星空的记忆本篇和 Eternal Heart 区别",
+      "strictIndex": 19,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        0,
+        19
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "星空的记忆 -Wish upon a shooting star"
+        },
+        {
+          "gameName": "星空的记忆 Eternal Heart"
+        }
+      ]
+    },
+    {
+      "id": "C19",
+      "category": "comparison",
+      "question": "灰色乐园和灰色果实的关系",
+      "strictIndex": 3,
+      "fuzzyIndex": 3,
+      "expects": [
+        {
+          "gameName": "灰色的乐园"
+        }
+      ]
+    },
+    {
+      "id": "C20",
+      "category": "comparison",
+      "question": "兰斯系列先玩03还是先玩6",
+      "strictIndex": 7,
+      "fuzzyIndex": 0,
+      "strictPositions": [
+        7,
+        0
+      ],
+      "fuzzyPositions": [
+        0,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "兰斯03 利萨斯陷落"
+        },
+        {
+          "gameName": "兰斯6 - 赛斯崩坏 -"
+        }
+      ]
+    },
+    {
+      "id": "C21",
+      "category": "comparison",
+      "question": "Muv-Luv Alternative 和 BALDR SKY 哪个燃",
+      "strictIndex": 5,
+      "fuzzyIndex": 3,
+      "strictPositions": [
+        0,
+        5
+      ],
+      "fuzzyPositions": [
+        0,
+        3
+      ],
+      "expects": [
+        {
+          "gameName": "Muv-Luv Alternative"
+        },
+        {
+          "gameName": "BALDR SKY Dive2 \"RECORDARE\""
+        }
+      ]
+    },
+    {
+      "id": "C22",
+      "category": "comparison",
+      "question": "素晴日和终之空remake的关系",
+      "strictIndex": 4,
+      "fuzzyIndex": 2,
+      "strictPositions": [
+        0,
+        4
+      ],
+      "fuzzyPositions": [
+        0,
+        2
+      ],
+      "expects": [
+        {
+          "gameName": "美好的每一天"
+        },
+        {
+          "gameName": "终之空 remake"
+        }
+      ]
+    },
+    {
+      "id": "C23",
+      "category": "comparison",
+      "question": "丸户史明的帕露菲和青空下哪个好",
+      "strictIndex": 4,
+      "fuzzyIndex": 4,
+      "strictPositions": [
+        0,
+        4
+      ],
+      "fuzzyPositions": [
+        0,
+        4
+      ],
+      "expects": [
+        {
+          "gameName": "女仆咖啡帕露菲"
+        },
+        {
+          "gameName": "青空下的约定"
+        }
+      ]
+    },
+    {
+      "id": "C24",
+      "category": "comparison",
+      "question": "水仙2和星之终途哪个更催泪",
+      "strictIndex": 5,
+      "fuzzyIndex": 5,
+      "strictPositions": [
+        0,
+        5
+      ],
+      "fuzzyPositions": [
+        0,
+        5
+      ],
+      "expects": [
+        {
+          "gameName": "水仙2"
+        },
+        {
+          "gameName": "星之终途"
+        }
+      ]
+    },
+    {
+      "id": "C25",
+      "category": "comparison",
+      "question": "Eushully 的战女神和神采哪个耐玩",
+      "strictIndex": 12,
+      "fuzzyIndex": 5,
+      "strictPositions": [
+        12,
+        0
+      ],
+      "fuzzyPositions": [
+        5,
+        0
+      ],
+      "expects": [
+        {
+          "gameName": "战女神ZERO"
+        },
+        {
+          "gameName": "神采炼金大师"
+        }
+      ]
+    }
+  ]
+}
