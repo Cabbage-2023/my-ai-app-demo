@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio'
-import type { GameDetail } from './types'
+import type { GameDetail } from '../types'
 
 export function parseGameDetail(id: number, html: string): GameDetail {
   const $ = cheerio.load(html)

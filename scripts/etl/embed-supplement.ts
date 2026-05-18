@@ -15,7 +15,7 @@ import path from 'node:path'
 import { readFile, mkdir, readdir } from 'node:fs/promises'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { createInterface } from 'node:readline'
-import { generateEmbeddings } from '../src/lib/ai/embedding'
+import { generateEmbeddings } from '../../src/lib/ai/embedding'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
 const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')

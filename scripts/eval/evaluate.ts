@@ -14,9 +14,9 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
-import { generateEmbedding } from '../src/lib/ai/embedding'
-import { search } from './lib/qdrant'
-import type { QdrantSearchResult } from './lib/qdrant'
+import { generateEmbedding } from '../../src/lib/ai/embedding'
+import { search } from '../lib/qdrant'
+import type { QdrantSearchResult } from '../lib/qdrant'
 
 const RESULT_PATH = path.resolve('scripts/evaluation-result.json')
 

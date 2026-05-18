@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio'
-import type { CharacterInfo } from './types'
+import type { CharacterInfo } from '../types'
 
 /** 从 API 响应解析角色详情 */
 export function parseCharacterDetailFromAPI(

@@ -11,14 +11,14 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import { fetchHTML, fetchAPI, rankUrl, commentsUrl, reviewsUrl, blogUrl } from './lib/fetcher'
-import { fetchHTMLviaBrowser } from './lib/browser-fetcher'
-import { parseGameList } from './lib/rank-parser'
-import { parseGameDetailFromAPI } from './lib/game-parser'
-import { parseComments, parseReviews } from './lib/comment-parser'
-import { parseBlogContent } from './lib/blog-parser'
-import { RANK_PAGES, MIN_RATING_COUNT } from './lib/config'
-import type { GameListItem, CharacterInfo, Review } from './lib/types'
+import { fetchHTML, fetchAPI, rankUrl, commentsUrl, reviewsUrl, blogUrl } from '../lib/crawl/fetcher'
+import { fetchHTMLviaBrowser } from '../lib/crawl/browser-fetcher'
+import { parseGameList } from '../lib/crawl/parsers/rank-parser'
+import { parseGameDetailFromAPI } from '../lib/crawl/parsers/game-parser'
+import { parseComments, parseReviews } from '../lib/crawl/parsers/comment-parser'
+import { parseBlogContent } from '../lib/crawl/parsers/blog-parser'
+import { RANK_PAGES, MIN_RATING_COUNT } from '../lib/crawl/config'
+import type { GameListItem, CharacterInfo, Review } from '../lib/crawl/types'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
 const RAW_DIR = path.resolve('scripts/data/raw')

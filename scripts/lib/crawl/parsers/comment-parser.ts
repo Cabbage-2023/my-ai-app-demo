@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio'
-import type { Comment, Review } from './types'
+import type { Comment, Review } from '../types'
 
 /** 星星 class → 分数 (1-10) */
 function starClassToScore(className: string): number {

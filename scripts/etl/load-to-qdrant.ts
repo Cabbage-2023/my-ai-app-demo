@@ -14,8 +14,8 @@ import path from 'node:path'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { MongoClient } from 'mongodb'
-import { upsertBatch, ensureCollection, count } from './lib/qdrant'
-import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from './lib/name-aliases'
+import { upsertBatch, ensureCollection, count } from '../lib/qdrant'
+import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from '../lib/name-aliases'
 
 const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const QDRANT_BATCH = 100

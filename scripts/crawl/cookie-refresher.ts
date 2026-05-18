@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer'
 import path from 'node:path'
 import { writeFile, mkdir } from 'node:fs/promises'
-import { saveCookies, getCookiePath } from './lib/cookie-manager'
+import { saveCookies, getCookiePath } from '../lib/crawl/cookie-manager'
 
 const EDGE_PATH = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 const USER_DATA_DIR = path.resolve('scripts/data/puppeteer-profile')

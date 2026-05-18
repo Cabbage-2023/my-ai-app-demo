@@ -8,10 +8,10 @@
  */
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import { fetchHTML, commentsUrl, reviewsUrl, blogUrl } from './lib/fetcher'
-import { fetchHTMLviaBrowser } from './lib/browser-fetcher'
-import { parseComments, parseReviews } from './lib/comment-parser'
-import { parseBlogContent } from './lib/blog-parser'
+import { fetchHTML, commentsUrl, reviewsUrl, blogUrl } from '../lib/crawl/fetcher'
+import { fetchHTMLviaBrowser } from '../lib/crawl/browser-fetcher'
+import { parseComments, parseReviews } from '../lib/crawl/parsers/comment-parser'
+import { parseBlogContent } from '../lib/crawl/parsers/blog-parser'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
 const RAW_DIR = path.resolve('scripts/data/raw')

@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import { fetchHTML, charCommentsUrl } from './lib/fetcher'
-import { parseCharComments } from './lib/char-comment-parser'
-import { REQUEST_DELAY_MS } from './lib/config'
+import { fetchHTML, charCommentsUrl } from '../lib/crawl/fetcher'
+import { parseCharComments } from '../lib/crawl/parsers/char-comment-parser'
+import { REQUEST_DELAY_MS } from '../lib/crawl/config'
 
 const parsedDir = path.resolve('scripts/data/parsed')
 

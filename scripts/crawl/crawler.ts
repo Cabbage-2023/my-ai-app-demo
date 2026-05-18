@@ -6,12 +6,12 @@ import {
   rankUrl,
   commentsUrl,
   reviewsUrl,
-} from './lib/fetcher'
-import { parseGameList } from './lib/rank-parser'
-import { parseGameDetailFromAPI } from './lib/game-parser'
-import { parseComments, parseReviews } from './lib/comment-parser'
-import { RANK_PAGES, MIN_RATING_COUNT } from './lib/config'
-import type { GameListItem, CrawlResult, CharacterInfo } from './lib/types'
+} from '../lib/crawl/fetcher'
+import { parseGameList } from '../lib/crawl/parsers/rank-parser'
+import { parseGameDetailFromAPI } from '../lib/crawl/parsers/game-parser'
+import { parseComments, parseReviews } from '../lib/crawl/parsers/comment-parser'
+import { RANK_PAGES, MIN_RATING_COUNT } from '../lib/crawl/config'
+import type { GameListItem, CrawlResult, CharacterInfo } from '../lib/crawl/types'
 
 const parsedDir = path.resolve('scripts/data/parsed')
 

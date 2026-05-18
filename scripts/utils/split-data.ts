@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import type { CrawlResult } from './lib/types'
+import type { CrawlResult } from '../lib/crawl/types'
 
 const parsedDir = path.resolve('scripts/data/parsed')
 

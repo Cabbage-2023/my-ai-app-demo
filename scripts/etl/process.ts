@@ -2,7 +2,7 @@ import 'dotenv/config'
 import path from 'node:path'
 import { readFile, readdir } from 'node:fs/promises'
 import { MongoClient } from 'mongodb'
-import { generateEmbeddings } from '../src/lib/ai/embedding'
+import { generateEmbeddings } from '../../src/lib/ai/embedding'
 
 const parsedDir = path.resolve('scripts/data/parsed')
 

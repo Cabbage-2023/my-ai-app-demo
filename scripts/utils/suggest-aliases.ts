@@ -15,7 +15,7 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { readFile, readdir } from 'node:fs/promises'
-import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from './lib/name-aliases'
+import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from '../lib/name-aliases'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
 const API_URL = 'https://api.deepseek.com/chat/completions'

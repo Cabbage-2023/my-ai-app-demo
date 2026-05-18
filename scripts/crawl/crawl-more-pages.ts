@@ -15,9 +15,9 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import { fetchHTML, commentsUrl, reviewsUrl } from './lib/fetcher'
-import { parseComments, parseReviews } from './lib/comment-parser'
-import type { Comment, Review } from './lib/types'
+import { fetchHTML, commentsUrl, reviewsUrl } from '../lib/crawl/fetcher'
+import { parseComments, parseReviews } from '../lib/crawl/parsers/comment-parser'
+import type { Comment, Review } from '../lib/crawl/types'
 
 const PARSED_DIR = path.resolve('scripts/data/parsed')
 

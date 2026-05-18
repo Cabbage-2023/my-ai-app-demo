@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
-import { fetchHTML, commentsUrl, reviewsUrl } from './lib/fetcher'
-import { fetchHTMLviaBrowser } from './lib/browser-fetcher'
-import { parseComments, parseReviews } from './lib/comment-parser'
+import { fetchHTML, commentsUrl, reviewsUrl } from '../lib/crawl/fetcher'
+import { fetchHTMLviaBrowser } from '../lib/crawl/browser-fetcher'
+import { parseComments, parseReviews } from '../lib/crawl/parsers/comment-parser'
 
 const parsedDir = path.resolve('scripts/data/parsed')
 const rawDir = path.resolve('scripts/data/raw')
