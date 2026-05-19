@@ -1,13 +1,26 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+/** 从 <html> 的 class 中读取暗色模式状态（服务端返回 false） */
+function useDarkMode(): boolean {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const observer = new MutationObserver(onStoreChange);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      return () => observer.disconnect();
+    },
+    () => document.documentElement.classList.contains('dark'),
+    () => false,
+  );
+}
+
 export default function Chat() {
   const [input, setInput] = useState('');
-  const [isDark, setIsDark] = useState(false);
+  const isDark = useDarkMode();
   const { messages, sendMessage, status, stop } = useChat();
   const isLoading = status === 'submitted' || status === 'streaming';
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -16,24 +29,19 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /* ── 暗色模式初始化 ── */
+  /* ── 暗色模式：从 localStorage 初始化 ── */
   useEffect(() => {
     const stored = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldBeDark = stored === 'dark' || (!stored && prefersDark);
-
-    if (shouldBeDark) {
+    if (stored === 'dark' || (!stored && prefersDark)) {
       document.documentElement.classList.add('dark');
-      setIsDark(true);
     }
   }, []);
 
   const toggleTheme = () => {
     const html = document.documentElement;
     html.classList.toggle('dark');
-    const nowDark = html.classList.contains('dark');
-    setIsDark(nowDark);
-    localStorage.setItem('theme', nowDark ? 'dark' : 'light');
+    localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
   };
 
   const handleSend = () => {
@@ -199,15 +207,7 @@ export default function Chat() {
                       // Knowledge base retrieval
                       case 'tool-getInformation': {
                         if (part.state === 'output-available') {
-                          // 等待所有同类型 tool 都完成后再渲染，避免先到结果计数跳变
-                          const allGetInfoParts = message.parts.filter(
-                            (p: any) => p.type === 'tool-getInformation',
-                          );
-                          const allCompleted = allGetInfoParts.every(
-                            (p: any) => p.state === 'output-available',
-                          );
-                          if (!allCompleted) return null;
-
+                          // 只渲染第一个有结果的 tool 卡片，其它 tool 的结果合并到它里面
                           const firstWithResults = message.parts.findIndex(
                             (p: any) =>
                               p.type === 'tool-getInformation' &&
@@ -216,6 +216,7 @@ export default function Chat() {
                           );
                           if (i !== firstWithResults) return null;
 
+                          // 合并所有已完成的 tool 结果（包括后续轮次追加的 tool）
                           const allResults = message.parts
                             .filter(
                               (p: any) =>
@@ -224,6 +225,7 @@ export default function Chat() {
                             .flatMap((p: any) => p.output || [])
                             .filter(Boolean);
 
+                          // 去重
                           const seen = new Set<string>();
                           const unique = allResults.filter((r: any) => {
                             const contentKey =
@@ -260,7 +262,7 @@ export default function Chat() {
                               className="p-3 my-2 bg-miku/5 rounded-xl border border-miku/25"
                             >
                               <div className="font-semibold mb-2 text-miku-dark text-sm">
-                                📖 知识库 ({Math.min(unique.length, MAX_DISPLAY)} 条)
+                                📖 知识库 ({unique.length} 条)
                               </div>
                               {displayItems.map((r: any, j: number) => (
                                 <div

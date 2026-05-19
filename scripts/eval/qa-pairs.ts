@@ -11,6 +11,8 @@ export interface QAPair {
   /** 期望的数据类型，用于 Type Accuracy */
   expectType?: string
   note: string
+  /** 人工撰写的理想答案（ground truth），用于 RAGAS context_recall 等指标 */
+  reference?: string
 }
 
 export const QA_PAIRS: QAPair[] = [
@@ -151,7 +153,7 @@ export const QA_PAIRS: QAPair[] = [
   { id: 'O99', category: 'opinion', question: '妹相随黑白世界的缤纷冒险怎么样',         expect: { gameName: '妹！相随 ~黑白世界的缤纷冒险~' }, theme: '妹！相随', note: '同人作品评价' },
   { id: 'O100', category: 'opinion', question: 'BALDR SKY的游戏性和剧情平衡',            expect: { gameName: 'BALDR SKY Dive2 "RECORDARE"' }, theme: 'BALDR SKY', note: '机甲战斗+剧情评价' },
 
-  // ============ 对比类 (25+)：跨游戏对比，limit 提升到 20 ============
+  // ============ 对比类 (25+)：跨游戏对比 ============
 
   { id: 'C01', category: 'comparison', question: '白色相簿2和CLANNAD哪个更感人',        expect: { gameName: '白色相簿2 终章' }, expects: [{ gameName: '白色相簿2 终章' }, { gameName: 'CLANNAD' }], theme: '白色相簿2', note: '两大催泪作对比' },
   { id: 'C02', category: 'comparison', question: '樱之诗和樱之刻哪个好',                 expect: { gameName: '樱之诗' },       expects: [{ gameName: '樱之诗' }, { gameName: '樱之刻' }], theme: '樱之诗', note: '系列前后作对比' },

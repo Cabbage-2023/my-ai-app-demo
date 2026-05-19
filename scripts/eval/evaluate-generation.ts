@@ -45,6 +45,7 @@ interface PerQuestionGenResult {
   question: string
   note: string
   contextPreview: string
+  contexts: string[]   // 完整 chunk 列表（供 RAGAS 评估用）
   answer: string
   scores: JudgeScores
 }
@@ -113,7 +114,7 @@ async function saveToCache(key: string, value: string): Promise<void> {
 // 5. Core functions
 // ============================================================
 
-async function searchAndAssemble(qa: QAPair): Promise<string> {
+async function searchAndAssemble(qa: QAPair): Promise<{ context: string; chunkContents: string[] }> {
   const embedding = await generateEmbedding(qa.question)
 
   // 构建自查询 filter
@@ -173,12 +174,14 @@ async function searchAndAssemble(qa: QAPair): Promise<string> {
   }
 
   const chunks: string[] = []
+  const chunkContents: string[] = []   // 纯内容，供 RAGAS 使用
   for (let i = 0; i < results.length; i++) {
     const p = results[i].payload as any
     const tag = [p.type || 'unknown', p.gameName || p.charName || ''].filter(Boolean).join('/')
     const content = String(p.content ?? '').slice(0, 1500)
     if (content.trim()) {
       chunks.push(`[来源 ${i + 1}] (${tag})\n${content}`)
+      chunkContents.push(content)
     }
   }
 
@@ -186,7 +189,11 @@ async function searchAndAssemble(qa: QAPair): Promise<string> {
   if (context.length > MAX_CONTEXT_CHARS) {
     context = context.slice(0, MAX_CONTEXT_CHARS) + '\n\n...(truncated)'
   }
-  return context || '(无相关内容)'
+  if (!context.trim()) {
+    context = '(无相关内容)'
+  }
+
+  return { context, chunkContents }
 }
 
 async function generateAnswer(question: string, context: string): Promise<string> {
@@ -258,7 +265,7 @@ async function judgeAnswerRelevance(question: string, answer: string): Promise<n
 // ============================================================
 
 async function processQA(qa: QAPair): Promise<PerQuestionGenResult> {
-  const context = await searchAndAssemble(qa)
+  const { context, chunkContents } = await searchAndAssemble(qa)
   const answer = await generateAnswer(qa.question, context)
   const faithfulness = await judgeFaithfulness(context, qa.question, answer)
   const answerRelevance = await judgeAnswerRelevance(qa.question, answer)
@@ -269,6 +276,7 @@ async function processQA(qa: QAPair): Promise<PerQuestionGenResult> {
     question: qa.question,
     note: qa.note,
     contextPreview: context.slice(0, 200),
+    contexts: chunkContents,
     answer,
     scores: { faithfulness, answerRelevance },
   }
@@ -395,6 +403,7 @@ async function main() {
       category: r.category,
       question: r.question,
       answer: r.answer,
+      contexts: r.contexts,
       faithfulness: r.scores.faithfulness,
       answerRelevance: r.scores.answerRelevance,
     })),

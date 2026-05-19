@@ -21,12 +21,27 @@ export async function POST(req: Request) {
   const agent = getAgent();
   const threadId = crypto.randomUUID();
 
+  // 后端中止：客户端断连时取消 agent 执行，避免 token 浪费
+  const abortController = new AbortController();
+  req.signal.addEventListener('abort', () => {
+    abortController.abort();
+  }, { once: true });
+
   const stream = new ReadableStream({
+    cancel() {
+      // 客户端中断 fetch（如点击 stop / 关闭页面）时，ReadableStream 的 cancel 会触发。
+      // 这比 req.signal 更可靠——浏览器 abort fetch 不一定会关闭 TCP 连接。
+      abortController.abort();
+    },
     async start(controller) {
       try {
         const eventStream = await agent.stream(
           { messages: langChainMessages },
-          { configurable: { thread_id: threadId }, streamMode: 'updates' },
+          {
+            configurable: { thread_id: threadId },
+            streamMode: 'updates',
+            signal: abortController.signal,
+          },
         );
 
         // uimessage chunk 协议要求 text-start → text-delta → text-end 序列
@@ -34,6 +49,7 @@ export async function POST(req: Request) {
         let hasText = false;
 
         for await (const event of eventStream) {
+          if (abortController.signal.aborted) break;
           // ── agent 节点输出 ──
           if (event.agent) {
             const msg: AIMessage = event.agent.messages[0];
@@ -89,12 +105,23 @@ export async function POST(req: Request) {
         }
         controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
       } catch (e) {
+        const errMsg = (e as Error).message;
+        const errName = (e as Error).name;
+        const isAbort = errName === 'AbortError' || abortController.signal.aborted;
+
+        // 客户端断连导致的 AbortError → 干净收尾，不送错误消息给用户
+        if (isAbort) {
+          if (hasText) controller.enqueue({ type: 'text-end' as const, id: textId });
+          controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
+          return;
+        }
+
         const errId = crypto.randomUUID();
         controller.enqueue({ type: 'text-start' as const, id: errId });
         controller.enqueue({
           type: 'text-delta' as const,
           id: errId,
-          delta: `抱歉，处理请求时出错：${(e as Error).message}`,
+          delta: `抱歉，处理请求时出错：${errMsg}`,
         });
         controller.enqueue({ type: 'text-end' as const, id: errId });
         controller.enqueue({ type: 'finish' as const, finishReason: 'error' as const });

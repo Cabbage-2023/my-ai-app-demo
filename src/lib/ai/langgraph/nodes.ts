@@ -50,7 +50,7 @@ const model = new ChatOpenAI({
  */
 export async function agentNode(
   state: AgentState,
-  _config?: RunnableConfig,
+  config?: RunnableConfig,
 ): Promise<Partial<AgentState>> {
   const { messages } = state;
 
@@ -61,7 +61,9 @@ export async function agentNode(
     ? messages
     : [new SystemMessage(SYSTEM_PROMPT), ...messages];
 
-  const response = await model.invoke(fullMessages);
+  const response = await model.invoke(fullMessages, {
+    signal: config?.signal,
+  });
 
   return { messages: [response] };
 }
