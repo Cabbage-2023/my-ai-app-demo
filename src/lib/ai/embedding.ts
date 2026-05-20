@@ -8,6 +8,8 @@ const siliconflow = createOpenAI({
 
 const embeddingModel = siliconflow.embedding('BAAI/bge-m3');
 
+export { generateSparseEmbedding } from './sparse-embedding';
+
 // generateEmbedding — 单个文本转向量
 export async function generateEmbedding(text: string): Promise<number[]> {
   const { embedding } = await embed({

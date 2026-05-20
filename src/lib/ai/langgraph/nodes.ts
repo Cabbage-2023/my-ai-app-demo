@@ -19,30 +19,45 @@ const SYSTEM_PROMPT = `你是一个精通 Galgame 领域的 AI 助手。
 - 对于对比类问题（比较多个游戏/角色），应分别检索再综合回答
 - 答案应基于知识库内容，不确定的内容不要编造
 
+## 检索规范
+调用 getInformation 时，必须根据问题内容设置精确的过滤条件：
+- 问题涉及**特定角色** → 必须设置 filter.charName（角色全名）
+- 问题涉及**特定游戏** → 必须设置 filter.gameName（游戏全名或常见译名）
+- 问题同时涉及角色和游戏 → 同时设置 charName 和 gameName
+- 问题涉及**特定类型**（如"剧情"、"评价"等不作为过滤条件） → 按需设置 filter.type
+- query 参数保持简洁，以实体名称为主，避免过长描述影响检索效果
+
 ## 行为准则
 - 回答简洁有条理，优先使用中文
 - 如果知识库中没有足够信息，如实告知用户
-- 对于需要最新信息的提问，可以使用 searchWeb 工具`;
+- 对于需要最新信息的提问，可以使用 searchWeb 工具
 
-/**
- * DeepSeek 模型实例（绑定 Tool）。
- *
- * 注意：deepseek-v4-flash 默认开启 thinking mode，会返回 reasoning_content
- * 字段，且要求后续请求中 assistant message 必须回传该字段。但 LangChain
- * 序列化会丢弃它，导致第二轮（tool 返回后）报 400。
- * 通过在 modelKwargs 中传入 thinking: { type: "disabled" } 关闭 thinking mode。
- */
-const model = new ChatOpenAI({
-  model: "deepseek-v4-flash",
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  temperature: 0,
-  modelKwargs: {
-    thinking: { type: "disabled" },
-  },
-  configuration: {
-    baseURL: "https://api.deepseek.com",
-  },
-}).bindTools(tools);
+## 事实引用规范
+- **检索结果优先于你的自有知识**。如果 getInformation 返回的内容与你记忆不符，以检索结果为准
+- 不要在回答中混用检索结果和你自己的知识——如果要引用检索内容，确保完整引用，不被你自己的预设覆盖
+- 如果你发现检索结果与你记忆矛盾，以检索结果为标准答案`;
+
+/** 缓存模型实例，避免重复创建 */
+let model: ReturnType<typeof createModel> | null = null
+
+function createModel() {
+  return new ChatOpenAI({
+    model: "deepseek-v4-flash",
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    temperature: 0,
+    modelKwargs: {
+      thinking: { type: "disabled" },
+    },
+    configuration: {
+      baseURL: "https://api.deepseek.com",
+    },
+  }).bindTools(tools)
+}
+
+function getModel() {
+  if (!model) model = createModel()
+  return model
+}
 
 /**
  * agentNode — 核心决策节点。
@@ -61,7 +76,7 @@ export async function agentNode(
     ? messages
     : [new SystemMessage(SYSTEM_PROMPT), ...messages];
 
-  const response = await model.invoke(fullMessages, {
+  const response = await getModel().invoke(fullMessages, {
     signal: config?.signal,
   });
 

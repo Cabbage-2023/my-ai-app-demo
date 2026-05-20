@@ -3,8 +3,8 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { generateEmbedding } from "@/lib/ai/embedding";
-import { searchSimilar } from "@/lib/qdrant";
+import { generateEmbedding, generateSparseEmbedding } from "@/lib/ai/embedding";
+import { searchSimilar, searchSparse } from "@/lib/qdrant";
 import { rerank } from "@/lib/ai/reranker";
 
 /**
@@ -15,8 +15,9 @@ export const getInformationTool = new DynamicStructuredTool({
   name: "getInformation",
   description:
     "从知识库中检索与问题相关的信息。当你需要回忆知识库内容时调用。" +
-    "对于对比类问题（比较多个游戏/角色），应使用 filter.type 缩小范围；" +
-    "对于特定游戏的问题，应使用 filter.gameName 精确定位。",
+    "对于对比类问题（比较多个游戏/角色），应使用 filter.type 缩小范围。" +
+    "涉及特定角色时必须设置 filter.charName（角色全名），涉及特定游戏时必须设置 filter.gameName。" +
+    "query 参数保持简洁，以实体名称为主，不要包含提问句式或评价性语言。",
   schema: z.object({
     question: z.string().describe("要检索的问题"),
     filter: z
@@ -73,9 +74,34 @@ export const getInformationTool = new DynamicStructuredTool({
       }
     }
 
-    // 粗召回 top 20 → rerank 精排 → 返回 top 5
-    const rawResults = await searchSimilar(embedding, 20, qdrantFilter as any);
-    const reranked = await rerank(question, rawResults, 5);
+    // 双路搜索（dense + sparse）→ RRF 融合 → rerank
+    const denseResults = await searchSimilar(embedding, 20, qdrantFilter as any);
+    const sparse = generateSparseEmbedding(question);
+    const sparseResults = await searchSparse(sparse, 20, qdrantFilter as any);
+
+    // RRF: score = 1 / (k + rank), k = 60
+    const k = 60;
+    const rrfScore = new Map<string, { result: (typeof denseResults)[0]; score: number }>();
+    const addToRRF = (results: typeof denseResults) => {
+      results.forEach((r, rank) => {
+        const key = `${r.metadata.source || ""}|${r.content.slice(0, 100)}`;
+        const entry = rrfScore.get(key);
+        if (entry) {
+          entry.score += 1 / (k + rank);
+        } else {
+          rrfScore.set(key, { result: r, score: 1 / (k + rank) });
+        }
+      });
+    };
+    addToRRF(denseResults);
+    addToRRF(sparseResults);
+
+    const fused = [...rrfScore.entries()]
+      .sort((a, b) => b[1].score - a[1].score)
+      .slice(0, 20)
+      .map(([, { result }]) => result);
+
+    const reranked = await rerank(question, fused, 5);
 
     // 置信度阈值：maxScore < 0.4 时不展示知识库卡片，LLM 自行 fallback
     const maxScore = reranked.length > 0

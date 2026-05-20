@@ -67,7 +67,10 @@ async function runPython(inputData: object): Promise<RagasOutput> {
     let stderr = ''
 
     proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString() })
-    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString() })
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+      process.stderr.write(chunk)  // 实时转发 Python 进度
+    })
 
     proc.on('close', (code) => {
       if (code !== 0) {
@@ -217,8 +220,7 @@ async function main() {
 
   // 4. 调用 Python
   console.error('正在调用 RAGAS (Python)...')
-  console.error(`问题数: ${ragasInput.questions.length}`)
-  console.error('首次运行需要下载模型缓存，请耐心等待...\n')
+  console.error(`问题数: ${ragasInput.questions.length}\n`)
 
   const ragasResult = await runPython(ragasInput)
 
@@ -227,7 +229,7 @@ async function main() {
     process.exit(1)
   }
 
-  // 5. 保存结果
+  // 5. 保存结果（累加历史）
   const output = {
     date: new Date().toISOString(),
     step1Date: step1.date,
@@ -240,8 +242,26 @@ async function main() {
     },
   }
 
+  let history: Array<{
+    date: string; pipeline: string
+    ragasAggregate: RagasAggregate
+    crossValidation: { faithfulnessDiff: number | null }
+  }> = []
+  try {
+    const existing = JSON.parse(await readFile(RAGAS_RESULT_PATH, 'utf-8'))
+    if (existing.history) history = existing.history
+  } catch { /* 新文件 */ }
+
+  history.push({
+    date: output.date,
+    pipeline: 'hybrid+reranker',
+    ragasAggregate: output.ragas.aggregate!,
+    crossValidation: output.crossValidation,
+  })
+  output['history'] = history
+
   await writeFile(RAGAS_RESULT_PATH, JSON.stringify(output, null, 2), 'utf-8')
-  console.error(`\nRAGAS 结果已保存到: ${RAGAS_RESULT_PATH}`)
+  console.error(`\nRAGAS 结果已保存到: ${RAGAS_RESULT_PATH}（累计 ${history.length} 次运行）`)
 
   // 6. 打印对照表
   printComparison(step1, ragasResult)

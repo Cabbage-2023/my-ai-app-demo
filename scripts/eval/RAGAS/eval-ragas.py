@@ -72,7 +72,6 @@ def run_ragas(input_data: dict) -> dict:
     ))
 
     # --- 控制 RAGAS 内部行为 ---
-    # RAGAS 内部创建 embedding client 时也走 SiliconFlow
     os.environ["OPENAI_API_KEY"] = siliconflow_key
     os.environ["OPENAI_BASE_URL"] = "https://api.siliconflow.cn/v1"
 
@@ -87,63 +86,52 @@ def run_ragas(input_data: dict) -> dict:
         ds_dict["reference"] = references
 
     dataset = Dataset.from_dict(ds_dict)
+    total = len(dataset)
 
     # --- 选择指标 ---
     metrics = [faithfulness]
-
-    # answer_relevancy 需要 embedding
     answer_relevancy.embeddings = embeddings
     metrics.append(answer_relevancy)
-
-    # context_recall 需要 reference 列
     if "reference" in ds_dict:
         metrics.append(context_recall)
 
-    result = evaluate(
-        dataset=dataset,
-        metrics=metrics,
-        llm=llm,
-        embeddings=embeddings,
-    )
-
-    # --- 调试：打印 result 类型 ---
-    print(f"DEBUG result type: {type(result).__name__}", file=sys.stderr)
-    if hasattr(result, 'column_names'):
-        print(f"DEBUG column_names: {result.column_names}", file=sys.stderr)
-    if hasattr(result, '_scores_dict'):
-        print(f"DEBUG _scores_dict keys: {list(result._scores_dict.keys())}", file=sys.stderr)
-
-    # --- 整理输出 ---
-    scores: dict[str, list[float]] = {}
+    # --- 分批处理 + 进度输出 ---
+    BATCH = 25
     metric_names = ["faithfulness", "answer_relevancy", "context_recall"]
-    for metric_name in metric_names:
-        try:
-            vals = result[metric_name]
-            if isinstance(vals, list):
-                scores[metric_name] = [float(v) for v in vals]
-            elif isinstance(vals, (int, float)):
-                scores[metric_name] = [float(vals)]
-            elif vals is not None:
-                # 可能是 numpy array 或其它可迭代类型
-                scores[metric_name] = [float(v) for v in vals]
-        except (KeyError, TypeError) as e:
-            print(f"DEBUG: failed to get {metric_name}: {e}", file=sys.stderr)
-            pass
+    all_scores: dict[str, list[float]] = {m: [] for m in metric_names}
 
-    # 尝试 to_pandas()
-    if not scores.get("faithfulness"):
+    for start in range(0, total, BATCH):
+        end = min(start + BATCH, total)
+        batch = dataset.select(range(start, end))
+        result = evaluate(batch, metrics=metrics, llm=llm, embeddings=embeddings)
+        for metric_name in metric_names:
+            try:
+                vals = result[metric_name]
+                if isinstance(vals, (list, tuple)):
+                    all_scores[metric_name].extend([float(v) for v in vals])
+                elif isinstance(vals, (int, float)):
+                    all_scores[metric_name].append(float(vals))
+                elif vals is not None:
+                    all_scores[metric_name].extend([float(v) for v in vals])
+            except (KeyError, TypeError):
+                pass
+        print(f"PROGRESS: {end}/{total}", file=sys.stderr, flush=True)
+
+    # --- 尝试 to_pandas() 兜底 ---
+    if not all_scores.get("faithfulness"):
         try:
-            df = result.to_pandas()
-            print(f"DEBUG pandas columns: {list(df.columns)}", file=sys.stderr)
+            df = evaluate(dataset, metrics=metrics, llm=llm, embeddings=embeddings).to_pandas()
             for name in metric_names:
                 if name in df.columns:
                     vals = df[name].tolist()
-                    scores[name] = [float(v) for v in vals]
-        except Exception as e:
-            print(f"DEBUG pandas fallback failed: {e}", file=sys.stderr)
+                    all_scores[name] = [float(v) for v in vals]
+        except Exception:
+            pass
 
     aggregate = {}
-    for name, vals in scores.items():
+    for name, vals in all_scores.items():
+        if not vals:
+            continue
         arr = np.array(vals)
         aggregate[name] = {
             "mean": float(np.mean(arr)) if len(arr) > 0 else 0.0,
@@ -152,7 +140,7 @@ def run_ragas(input_data: dict) -> dict:
             "median": float(np.median(arr)) if len(arr) > 0 else 0.0,
         }
 
-    return {"scores": scores, "aggregate": aggregate}
+    return {"scores": all_scores, "aggregate": aggregate}
 
 
 def main():

@@ -16,6 +16,7 @@ import { createInterface } from 'node:readline'
 import { MongoClient } from 'mongodb'
 import { upsertBatch, ensureCollection, count } from '../lib/qdrant'
 import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from '../lib/name-aliases'
+import { generateSparseEmbedding } from '../../src/lib/ai/sparse-embedding'
 
 const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const QDRANT_BATCH = 100
@@ -98,9 +99,11 @@ async function main() {
       const gameName = c.metadata.gameName || ''
       const charName = c.metadata.charName || ''
       const aliases = computeNameAliases(gameName, charName)
+      const sparse = generateSparseEmbedding(c.content)
       return {
         id: i + idx + 1,
         vector: c.embedding,
+        sparse_vectors: { bm25: sparse },
         payload: {
           content: c.content,
           dedupKey: c.dedupKey,

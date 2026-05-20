@@ -14,8 +14,9 @@ import 'dotenv/config'
 import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile, appendFile } from 'node:fs/promises'
-import { generateEmbedding } from '../../src/lib/ai/embedding'
-import { search as qdrantSearch } from '../lib/qdrant'
+import { generateEmbedding, generateSparseEmbedding } from '../../src/lib/ai/embedding'
+import { rerank } from '../../src/lib/ai/reranker'
+import { search as qdrantSearch, searchSparse } from '../lib/qdrant'
 import { QA_PAIRS, QAPair } from './qa-pairs'
 
 // ============================================================
@@ -26,6 +27,7 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions'
 const MODEL = 'deepseek-chat'
 const CACHE_PATH = path.resolve('scripts/eval/.gen-eval-cache.jsonl')
 const RESULT_PATH = path.resolve('scripts/eval/eval-generation-result.json')
+const REF_ANSWERS_PATH = path.resolve('scripts/eval/reference-answers.json')
 const TOP_K = 5
 const MAX_CONTEXT_CHARS = 6000
 const CONCURRENCY = 3
@@ -116,12 +118,13 @@ async function saveToCache(key: string, value: string): Promise<void> {
 
 async function searchAndAssemble(qa: QAPair): Promise<{ context: string; chunkContents: string[] }> {
   const embedding = await generateEmbedding(qa.question)
+  const sparse = generateSparseEmbedding(qa.question)
 
   // 构建自查询 filter
   let results: Awaited<ReturnType<typeof qdrantSearch>>
 
   if (qa.category === 'comparison' && qa.expects && qa.expects.length > 1) {
-    // 对比类多路召回 + round-robin 交错合并
+    // 对比类多路召回 + round-robin 交错合并 + hybrid
     const gamesResults: Awaited<ReturnType<typeof qdrantSearch>>[] = []
     const seenIds = new Set<number>()
     for (const e of qa.expects) {
@@ -131,7 +134,27 @@ async function searchAndAssemble(qa: QAPair): Promise<{ context: string; chunkCo
         { key: 'gameAliases', match: { value: e.gameName } },
       ]
       const gameFilter = { must: [{ min_should: { conditions, min_count: 1 } }] }
-      gamesResults.push(await qdrantSearch(embedding, { limit: 10, filter: gameFilter }))
+
+      // dense + sparse 双路
+      const [dense, sparseRes] = await Promise.all([
+        qdrantSearch(embedding, { limit: 10, filter: gameFilter }),
+        searchSparse(sparse, { limit: 10, filter: gameFilter }),
+      ])
+
+      // RRF 融合
+      const rrf = new Map<number, number>()
+      for (const [rank, r] of dense.entries()) {
+        rrf.set(r.id, (rrf.get(r.id) || 0) + 1 / (60 + rank))
+      }
+      for (const [rank, r] of sparseRes.entries()) {
+        rrf.set(r.id, (rrf.get(r.id) || 0) + 1 / (60 + rank))
+      }
+      const fused = [...dense, ...sparseRes]
+        .filter((r, i, a) => a.findIndex(x => x.id === r.id) === i)
+        .sort((a, b) => (rrf.get(b.id) || 0) - (rrf.get(a.id) || 0))
+        .slice(0, 10)
+
+      gamesResults.push(fused)
     }
     const merged: Awaited<ReturnType<typeof qdrantSearch>> = []
     const cursors = new Array(gamesResults.length).fill(0)
@@ -151,7 +174,14 @@ async function searchAndAssemble(qa: QAPair): Promise<{ context: string; chunkCo
       }
       if (!added) break
     }
-    results = merged
+    // rerank: merged top 10 → reranker → top 5
+    const cmpCandidates = merged.slice(0, TOP_K * 2).map((r, i) => ({
+      content: String((r.payload as any)?.content ?? ''),
+      metadata: { idx: i },
+      score: r.score,
+    }))
+    const cmpReranked = await rerank(qa.question, cmpCandidates, TOP_K)
+    results = cmpReranked.map(r => merged[(r.metadata as any).idx as number])
   } else {
     let filter: Record<string, any> | undefined
     const must: Record<string, any>[] = []
@@ -170,7 +200,30 @@ async function searchAndAssemble(qa: QAPair): Promise<{ context: string; chunkCo
       must.push({ min_should: { conditions: nameConditions, min_count: 1 } })
     }
     if (must.length > 0) filter = { must }
-    results = await qdrantSearch(embedding, { limit: TOP_K, filter })
+
+    // dense + sparse 双路 + RRF
+    const [dense, sparseRes] = await Promise.all([
+      qdrantSearch(embedding, { limit: TOP_K * 2, filter }),
+      searchSparse(sparse, { limit: TOP_K * 2, filter }),
+    ])
+    const rrf = new Map<number, number>()
+    for (const [rank, r] of dense.entries()) {
+      rrf.set(r.id, (rrf.get(r.id) || 0) + 1 / (60 + rank))
+    }
+    for (const [rank, r] of sparseRes.entries()) {
+      rrf.set(r.id, (rrf.get(r.id) || 0) + 1 / (60 + rank))
+    }
+    const fused = [...dense, ...sparseRes]
+      .filter((r, i, a) => a.findIndex(x => x.id === r.id) === i)
+      .sort((a, b) => (rrf.get(b.id) || 0) - (rrf.get(a.id) || 0))
+    // rerank: RRF top 10 → reranker → top 5
+    const candidates = fused.slice(0, TOP_K * 2).map((r, i) => ({
+      content: String((r.payload as any)?.content ?? ''),
+      metadata: { idx: i },
+      score: r.score,
+    }))
+    const reranked = await rerank(qa.question, candidates, TOP_K)
+    results = reranked.map(r => fused[(r.metadata as any).idx as number])
   }
 
   const chunks: string[] = []
@@ -389,6 +442,9 @@ async function main() {
   printResultsTable(results)
 
   // ========== 保存 JSON 结果 ==========
+  const refAnswers = JSON.parse(await readFile(REF_ANSWERS_PATH, 'utf-8')) as { id: string; reference: string }[]
+  const refMap = new Map(refAnswers.map(r => [r.id, r.reference]))
+
   const output = {
     date: new Date().toISOString(),
     totalPairs: results.length,
@@ -404,6 +460,7 @@ async function main() {
       question: r.question,
       answer: r.answer,
       contexts: r.contexts,
+      reference: refMap.get(r.id) || QA_PAIRS.find(q => q.id === r.id)?.reference,
       faithfulness: r.scores.faithfulness,
       answerRelevance: r.scores.answerRelevance,
     })),

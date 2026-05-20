@@ -1,11 +1,14 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Sidebar from './components/Sidebar';
+import ScrollIndicator from './components/ScrollIndicator';
+import { useConversations } from './hooks/useConversations';
 
-/** 从 <html> 的 class 中读取暗色模式状态（服务端返回 false） */
+/** 从 <html> class 中读取暗色模式状态 */
 function useDarkMode(): boolean {
   return useSyncExternalStore(
     (onStoreChange) => {
@@ -19,17 +22,112 @@ function useDarkMode(): boolean {
 }
 
 export default function Chat() {
+  const {
+    conversations,
+    currentId,
+    hydrated,
+    createConversation,
+    deleteConversation,
+    switchConversation,
+    updateConversation,
+  } = useConversations();
+
   const [input, setInput] = useState('');
   const isDark = useDarkMode();
-  const { messages, sendMessage, status, stop } = useChat();
-  const isLoading = status === 'submitted' || status === 'streaming';
-  const bottomRef = useRef<HTMLDivElement>(null);
 
+  /* ── Sidebar ── */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+
+  /* ── KB Card collapse ── */
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+
+  /* ── useChat with multi-conversation support ── */
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
+    id: currentId,
+  });
+
+  /* ── 手动持久化消息到 localStorage ── */
+  const prevIdRef = useRef(currentId)
+  const initialLoadDone = useRef(false)
+  const switchingRef = useRef(false)
+
+  // 切换对话：加载目标对话的消息（不在此保存当前消息，save effect 已实时持久化）
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!prevIdRef.current || !hydrated) {
+      prevIdRef.current = currentId
+      return
+    }
+    if (prevIdRef.current !== currentId) {
+      switchingRef.current = true
+      const saved = localStorage.getItem(`chat:msgs:${currentId}`)
+      if (saved) {
+        try { setMessages(JSON.parse(saved)) } catch {}
+      } else {
+        setMessages([])
+      }
+      prevIdRef.current = currentId
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId])
+
+  // 初始化：hydrated 后从 localStorage 加载
+  useEffect(() => {
+    if (!hydrated) return
+    const saved = localStorage.getItem(`chat:msgs:${currentId}`)
+    if (saved) {
+      try { setMessages(JSON.parse(saved)) } catch {}
+    }
+    // 标记首次加载完成，让保存 effect 开始工作
+    initialLoadDone.current = true
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated])
+
+  // 保存：每次消息变化时写入 localStorage
+  // 跳过对话切换时的空消息过渡，避免覆盖已保存的目标对话数据
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    if (switchingRef.current) {
+      switchingRef.current = false
+      return
+    }
+    localStorage.setItem(`chat:msgs:${currentId}`, JSON.stringify(messages))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages])
+  const isLoading = status === 'submitted' || status === 'streaming';
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const roundRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const prevMsgLen = useRef(0);
+
+  /* ── Auto-scroll ── */
+  useEffect(() => {
+    if (messages.length > prevMsgLen.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMsgLen.current = messages.length;
   }, [messages]);
 
-  /* ── 暗色模式：从 localStorage 初始化 ── */
+  /* ── Auto-title on first user message ── */
+  useEffect(() => {
+    const userMsgs = messages.filter(m => m.role === 'user');
+    if (userMsgs.length === 1) {
+      const text = userMsgs[0].parts?.find(p => p.type === 'text')?.text || '';
+      const title = text.slice(0, 20) || '新对话';
+      const conv = conversations.find(c => c.id === currentId);
+      if (conv && conv.title === '新对话') {
+        updateConversation(currentId, { title });
+      }
+    }
+    const userCount = userMsgs.length;
+    const conv = conversations.find(c => c.id === currentId);
+    if (conv && conv.messageCount !== userCount) {
+      updateConversation(currentId, { messageCount: userCount });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.filter(m => m.role === 'user').length]);
+
+  /* ── Dark mode init ── */
   useEffect(() => {
     const stored = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -46,16 +144,78 @@ export default function Chat() {
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
-    sendMessage({ text: input });
+    sendMessage(
+      { text: input },
+      { body: { conversationId: currentId } },
+    );
     setInput('');
   };
 
+  const toggleCardCollapse = useCallback((key: string) => {
+    setCollapsedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  /* ── ScrollIndicator rounds ── */
+  const rounds = (() => {
+    const result: { id: string; label: string; el: HTMLElement | null }[] = [];
+    for (let i = 0; i < messages.length - 1; i++) {
+      if (messages[i].role === 'user' && messages[i + 1].role === 'assistant') {
+        const label = messages[i].parts?.find(p => p.type === 'text')?.text.slice(0, 8) || '查看';
+        result.push({
+          id: messages[i + 1].id,
+          label,
+          el: roundRefs.current.get(messages[i + 1].id) || null,
+        });
+      }
+    }
+    return result;
+  })();
+
+  /* ── Helper to format KB source label ── */
+  const sourceLabel = (meta: any) => {
+    const name = meta?.gameName || meta?.charName || '';
+    switch (meta?.type) {
+      case 'comment': return `${name} 相关评论`;
+      case 'review': return `${name} 相关长评`;
+      case 'char_review': return `${name} 相关评论`;
+      case 'character': return `${name} 角色介绍`;
+      case 'game_intro': return `${name} 作品简介`;
+      default: return name || '';
+    }
+  };
+
   return (
-    <div className="flex flex-col h-dvh bg-subtle transition-colors">
-      {/* Header */}
+    <div className={`flex flex-col h-dvh bg-subtle transition-colors ${!sidebarCollapsed ? 'sm:pl-[260px]' : ''}`}>
+      {/* ── Sidebar ── */}
+      <Sidebar
+        conversations={conversations}
+        currentId={currentId}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(v => !v)}
+        onCreate={createConversation}
+        onDelete={deleteConversation}
+        onSwitch={switchConversation}
+      />
+
+      {/* ── Header ── */}
       <header className="bg-surface/80 backdrop-blur-sm border-b border-miku/15 px-4 py-3 sticky top-0 z-10 transition-colors">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {/* Hamburger */}
+            <button
+              onClick={() => setSidebarCollapsed(v => !v)}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-fg-muted hover:bg-miku/10 hover:text-miku transition-colors sm:hidden"
+              aria-label="切换侧边栏"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              </svg>
+            </button>
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-miku to-miku-dark flex items-center justify-center shadow-sm">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
@@ -67,28 +227,30 @@ export default function Chat() {
             </div>
           </div>
 
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-fg-muted hover:bg-miku/10 hover:text-miku transition-colors"
-            aria-label="切换主题"
-          >
-            {isDark ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-fg-muted hover:bg-miku/10 hover:text-miku transition-colors"
+              aria-label="切换主题"
+            >
+              {isDark ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5"/>
+                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      {/* ── Messages ── */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto space-y-5">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center mt-32 max-sm:mt-20 text-fg-muted select-none">
@@ -104,6 +266,7 @@ export default function Chat() {
 
           {messages.map(message => (
             <div key={message.id} className={`flex items-start gap-2.5 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+
               {/* Avatar */}
               <div
                 className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shadow-sm mt-1 transition-colors ${
@@ -116,7 +279,14 @@ export default function Chat() {
               </div>
 
               {/* Bubble */}
-              <div className="max-w-[80%] max-sm:max-w-[calc(100%-3rem)] break-words">
+              <div
+                className={`max-w-[80%] max-sm:max-w-[calc(100%-3rem)] break-words ${
+                  message.role === 'user' ? '' : 'flex-1'
+                }`}
+                ref={el => {
+                  if (el && message.role === 'assistant') roundRefs.current.set(message.id, el);
+                }}
+              >
                 <div
                   className={`transition-colors ${
                     message.role === 'user'
@@ -124,8 +294,11 @@ export default function Chat() {
                       : 'bg-surface text-fg rounded-2xl rounded-tl-sm px-4 py-2.5 border border-border/70 shadow-sm'
                   }`}
                 >
-                  {message.parts?.map((part: any, i) => {
+                  {message.parts?.map((part: any, i: number) => {
+                    const cardKey = `${message.id}-${i}`;
+
                     switch (part.type) {
+                      /* ── Text ── */
                       case 'text':
                         if (message.role === 'user') {
                           return <div key={`${message.id}-${i}`} className="whitespace-pre-wrap">{part.text}</div>;
@@ -139,10 +312,10 @@ export default function Chat() {
                           </div>
                         );
 
-                      // Weather tool
+                      /* ── Weather tool ── */
                       case 'tool-weather': {
                         const isIntermediate = message.parts.some(
-                          (p, index) => index > i && p.type === 'tool-convertFahrenheitToCelsius',
+                          (p: any, index: number) => index > i && p.type === 'tool-convertFahrenheitToCelsius',
                         );
                         if (part.state === 'output-available') {
                           if (isIntermediate) {
@@ -153,10 +326,7 @@ export default function Chat() {
                             );
                           }
                           return (
-                            <div
-                              key={`${message.id}-${i}`}
-                              className="p-2.5 my-2 bg-miku/5 rounded-xl border border-miku/20"
-                            >
+                            <div key={`${message.id}-${i}`} className="p-2.5 my-2 bg-miku/5 rounded-xl border border-miku/20">
                               <div className="text-sm text-miku-dark font-medium">📍 {part.output.location}</div>
                               <div className="text-lg font-semibold text-fg">{part.output.temperature}°F</div>
                             </div>
@@ -169,14 +339,11 @@ export default function Chat() {
                         );
                       }
 
-                      // Temperature conversion
+                      /* ── Temperature conversion ── */
                       case 'tool-convertFahrenheitToCelsius': {
                         if (part.state === 'output-available') {
                           return (
-                            <div
-                              key={`${message.id}-${i}`}
-                              className="p-2.5 my-2 bg-gradient-to-r from-miku/10 to-miku-light/20 rounded-xl border border-miku/30"
-                            >
+                            <div key={`${message.id}-${i}`} className="p-2.5 my-2 bg-gradient-to-r from-miku/10 to-miku-light/20 rounded-xl border border-miku/30">
                               <div className="text-xs text-fg-muted">温度换算</div>
                               <div className="text-lg font-bold text-miku-dark">{part.output.celsius}°C</div>
                             </div>
@@ -185,14 +352,11 @@ export default function Chat() {
                         return null;
                       }
 
-                      // Add resource
+                      /* ── Add resource ── */
                       case 'tool-addResource': {
                         if (part.state === 'output-available') {
                           return (
-                            <div
-                              key={`${message.id}-${i}`}
-                              className="p-2 my-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800"
-                            >
+                            <div key={`${message.id}-${i}`} className="p-2 my-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800">
                               ✅ 已记住一条新信息
                             </div>
                           );
@@ -204,10 +368,9 @@ export default function Chat() {
                         );
                       }
 
-                      // Knowledge base retrieval
+                      /* ── Knowledge base retrieval (collapsible) ── */
                       case 'tool-getInformation': {
                         if (part.state === 'output-available') {
-                          // 只渲染第一个有结果的 tool 卡片，其它 tool 的结果合并到它里面
                           const firstWithResults = message.parts.findIndex(
                             (p: any) =>
                               p.type === 'tool-getInformation' &&
@@ -216,7 +379,6 @@ export default function Chat() {
                           );
                           if (i !== firstWithResults) return null;
 
-                          // 合并所有已完成的 tool 结果（包括后续轮次追加的 tool）
                           const allResults = message.parts
                             .filter(
                               (p: any) =>
@@ -225,13 +387,11 @@ export default function Chat() {
                             .flatMap((p: any) => p.output || [])
                             .filter(Boolean);
 
-                          // 去重
                           const seen = new Set<string>();
                           const unique = allResults.filter((r: any) => {
-                            const contentKey =
-                              typeof r.content === 'string'
-                                ? r.content.slice(0, 100)
-                                : String(r.content ?? '');
+                            const contentKey = typeof r.content === 'string'
+                              ? r.content.slice(0, 100)
+                              : String(r.content ?? '');
                             const key = `${r.metadata?.source || ''}|${contentKey}`;
                             if (seen.has(key)) return false;
                             seen.add(key);
@@ -240,45 +400,46 @@ export default function Chat() {
 
                           if (unique.length === 0) return null;
 
+                          const collapsed = collapsedCards.has(cardKey);
                           const MAX_DISPLAY = 5;
                           const displayItems = unique.slice(0, MAX_DISPLAY);
                           const hasMore = unique.length > MAX_DISPLAY;
 
-                          const sourceLabel = (meta: any) => {
-                            const name = meta?.gameName || meta?.charName || '';
-                            switch (meta?.type) {
-                              case 'comment': return `${name} 相关评论`;
-                              case 'review': return `${name} 相关长评`;
-                              case 'char_review': return `${name} 相关评论`;
-                              case 'character': return `${name} 角色介绍`;
-                              case 'game_intro': return `${name} 作品简介`;
-                              default: return name || '';
-                            }
-                          };
-
                           return (
                             <div
-                              key={`${message.id}-${i}`}
-                              className="p-3 my-2 bg-miku/5 rounded-xl border border-miku/25"
+                              key={cardKey}
+                              className={`p-3 my-2 bg-miku/5 rounded-xl border border-miku/25 transition-all duration-200 ${
+                                collapsed ? 'opacity-60' : ''
+                              }`}
                             >
-                              <div className="font-semibold mb-2 text-miku-dark text-sm">
-                                📖 知识库 ({unique.length} 条)
-                              </div>
-                              {displayItems.map((r: any, j: number) => (
-                                <div
-                                  key={j}
-                                  className={`${j > 0 ? 'mt-2 pt-2 border-t border-miku/10' : ''}`}
-                                >
-                                  <div className="text-sm text-fg leading-relaxed break-words">{r.content}</div>
-                                  {(r.metadata?.gameName || r.metadata?.charName) && (
-                                    <div className="text-xs text-fg-muted mt-1">{sourceLabel(r.metadata)}</div>
+                              {/* Collapse toggle header */}
+                              <button
+                                onClick={() => toggleCardCollapse(cardKey)}
+                                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-miku-dark text-sm group"
+                              >
+                                <span className="text-xs transition-transform duration-200">
+                                  {collapsed ? '▶' : '▼'}
+                                </span>
+                                <span>📖 知识库 ({unique.length} 条)</span>
+                              </button>
+
+                              {/* Content (hidden when collapsed) */}
+                              {!collapsed && (
+                                <>
+                                  {displayItems.map((r: any, j: number) => (
+                                    <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-miku/10' : ''}`}>
+                                      <div className="text-sm text-fg leading-relaxed break-words">{r.content}</div>
+                                      {(r.metadata?.gameName || r.metadata?.charName) && (
+                                        <div className="text-xs text-fg-muted mt-1">{sourceLabel(r.metadata)}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {hasMore && (
+                                    <div className="text-xs text-fg-muted mt-2 text-center">
+                                      ...还有 {unique.length - MAX_DISPLAY} 条结果
+                                    </div>
                                   )}
-                                </div>
-                              ))}
-                              {hasMore && (
-                                <div className="text-xs text-fg-muted mt-2 text-center">
-                                  ...还有 {unique.length - MAX_DISPLAY} 条结果
-                                </div>
+                                </>
                               )}
                             </div>
                           );
@@ -302,7 +463,10 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Input area */}
+      {/* ── ScrollIndicator ── */}
+      <ScrollIndicator containerRef={containerRef as React.RefObject<HTMLDivElement | null>} rounds={rounds} />
+
+      {/* ── Input area ── */}
       <div className="border-t border-border/70 bg-surface px-4 py-3 transition-colors" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 bg-subtle rounded-2xl border border-border/80 focus-within:border-miku focus-within:ring-2 focus-within:ring-miku/15 transition-all px-4">

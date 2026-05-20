@@ -7,7 +7,7 @@ import { getAgent } from '@/lib/ai/langgraph/graph';
 /** 将 UIMessage[] 转为 LangChain BaseMessage[] */
 function toLangChainMessages(msgs: UIMessage[]): BaseMessage[] {
   return msgs.map((m) => {
-    const content = m.parts?.map((p: any) => p.text ?? '').join('') ?? '';
+    const content = m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('') ?? '';
     if (m.role === 'user') return new HumanMessage(content);
     if (m.role === 'assistant') return new AIMessage(content);
     return new HumanMessage(content);
@@ -15,11 +15,14 @@ function toLangChainMessages(msgs: UIMessage[]): BaseMessage[] {
 }
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const { messages, conversationId }: {
+    messages: UIMessage[];
+    conversationId?: string;
+  } = await req.json();
   const langChainMessages = toLangChainMessages(messages.slice(-6));
 
   const agent = getAgent();
-  const threadId = crypto.randomUUID();
+  const threadId = conversationId || crypto.randomUUID();
 
   // 后端中止：客户端断连时取消 agent 执行，避免 token 浪费
   const abortController = new AbortController();
@@ -29,11 +32,13 @@ export async function POST(req: Request) {
 
   const stream = new ReadableStream({
     cancel() {
-      // 客户端中断 fetch（如点击 stop / 关闭页面）时，ReadableStream 的 cancel 会触发。
-      // 这比 req.signal 更可靠——浏览器 abort fetch 不一定会关闭 TCP 连接。
       abortController.abort();
     },
     async start(controller) {
+      // 在 try 外声明，供 catch 块访问
+      let textId = '';
+      let hasText = false;
+
       try {
         const eventStream = await agent.stream(
           { messages: langChainMessages },
@@ -44,15 +49,15 @@ export async function POST(req: Request) {
           },
         );
 
-        // uimessage chunk 协议要求 text-start → text-delta → text-end 序列
-        const textId = crypto.randomUUID();
-        let hasText = false;
+        // uimessage chunk 协议要求 text-start/delta/end 序列
+        textId = crypto.randomUUID();
 
         for await (const event of eventStream) {
           if (abortController.signal.aborted) break;
           // ── agent 节点输出 ──
           if (event.agent) {
             const msg: AIMessage = event.agent.messages[0];
+            const content = typeof msg.content === 'string' ? msg.content : '';
 
             // 有 tool_calls → 发射 tool-input-available（前端渲染 loading 卡片）
             if (msg.tool_calls?.length) {
@@ -67,15 +72,12 @@ export async function POST(req: Request) {
             }
 
             // 有文本内容 → text-start / text-delta
-            // 注意：只在 agent 没有 tool_calls 时 emit 文本。
-            // 有 tool_calls 的 agent 事件中的文本是调用工具前的"思考过程"（如"让我检索一下"），
-            // 如果也 emit 会导致工具卡片穿插在文本中间，打乱对话顺序。
-            if (!msg.tool_calls?.length && typeof msg.content === 'string' && msg.content) {
+            if (!msg.tool_calls?.length && content) {
               if (!hasText) {
                 controller.enqueue({ type: 'text-start' as const, id: textId });
                 hasText = true;
               }
-              controller.enqueue({ type: 'text-delta' as const, id: textId, delta: msg.content });
+              controller.enqueue({ type: 'text-delta' as const, id: textId, delta: content });
             }
           }
 
@@ -109,7 +111,6 @@ export async function POST(req: Request) {
         const errName = (e as Error).name;
         const isAbort = errName === 'AbortError' || abortController.signal.aborted;
 
-        // 客户端断连导致的 AbortError → 干净收尾，不送错误消息给用户
         if (isAbort) {
           if (hasText) controller.enqueue({ type: 'text-end' as const, id: textId });
           controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
