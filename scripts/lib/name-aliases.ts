@@ -205,6 +205,32 @@ export const GAME_ALIASES: Record<string, string[]> = {
 
 }
 
+/** 品牌中文俗称 → Bangumi 搜索用名（日文/英文），用于 searchWeb 查询扩展 */
+export const COMPANY_SEARCH_ALIASES: Record<string, string[]> = {
+  '柚子社': ['ゆずソフト', 'Yuzu-Soft'],
+  'Key社': ['Key'],
+  '型月': ['Type-Moon', 'TYPE-MOON'],
+  '八月社': ['August'],
+  '叶子社': ['Leaf'],
+  '中二社': ['Minori'],
+  '枕社': ['枕', 'Makura'],
+  '音符社': ['ensemble'],
+  '漩涡社': ['Whirlpool'],
+  '方糖社': ['Lump of Sugar'],
+  '戏画': ['GIGA', '戯画'],
+  'ALICESOFT': ['Alice Soft', 'アリスソフト'],
+  'Eushully': ['エウシュリー'],
+  'Frontwing': ['フロントウイング'],
+  'SAGAPLANETS': ['サガプラネッツ'],
+  'CUBE': ['CUBE'],
+  'Navel': ['ナベル'],
+  '紫社': ['Purple Software'],
+  '大枪社': ['Lump of Sugar'],
+  '水晶社': ['Crystal-soft'],
+  '柚子': ['ゆずソフト', 'Yuzu-Soft'],
+  'Key': ['Key'],
+};
+
 /** 制作商/品牌 → 旗下作品 */
 export const PRODUCER_GAMES: Record<string, string[]> = {
   '柚子社': ['天使的星期日'],

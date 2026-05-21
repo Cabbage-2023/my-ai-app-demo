@@ -6,7 +6,7 @@ import {
   messagesStateReducer,
 } from "@langchain/langgraph";
 import { type BaseMessage } from "@langchain/core/messages";
-import { agentNode, router } from "./nodes";
+import { agentNode, router, respondNode } from "./nodes";
 import { toolNode } from "./tools";
 import { createCheckpointer } from "./memory";
 
@@ -59,15 +59,19 @@ export function getAgent() {
     // 注册节点
     .addNode("agent", agentNode)
     .addNode("tools", toolNode)
+    .addNode("respond", respondNode)
     // 入口 → agent
     .addEdge(START, "agent")
-    // agent → 条件路由（工具调用继续 / 结束）
+    // agent → 条件路由（工具调用继续 / 兜底 / 结束）
     .addConditionalEdges("agent", router, {
       tools: "tools",
+      respond: "respond",
       __end__: END,
     })
     // tools → 回到 agent（继续循环）
-    .addEdge("tools", "agent");
+    .addEdge("tools", "agent")
+    // respond → 结束
+    .addEdge("respond", END);
 
   compiledGraph = builder.compile({
     checkpointer: createCheckpointer(),

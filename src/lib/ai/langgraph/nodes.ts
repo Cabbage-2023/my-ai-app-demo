@@ -30,12 +30,33 @@ const SYSTEM_PROMPT = `你是一个精通 Galgame 领域的 AI 助手。
 ## 行为准则
 - 回答简洁有条理，优先使用中文
 - 如果知识库中没有足够信息，如实告知用户
-- 对于需要最新信息的提问，可以使用 searchWeb 工具
+- 对于知识库未收录的内容、新作、冷门作品，使用 searchWeb 工具从 Bangumi 搜索
+
+### 检索顺序
+1. 先调 getInformation 从知识库检索
+2. 信息不足时再调 searchWeb 联网搜索
+
+### searchWeb 的 persist 参数
+searchWeb 工具带有 persist 参数（默认 false）：
+- 用户只是问信息 → persist=false（默认），仅搜索展示，不存库
+- 用户明确说"存一下""收录""保存到知识库"等 → persist=true，搜完后自动后台入库
+
+**注意：除非用户明确提到多个游戏且关系非常确定（如"把 XX 和 YY 都存了"），否则 persist=true 一次只存一个游戏。搜索结果可能包含系列相关作品，不要因为搜到了就批量入库。**
 
 ## 事实引用规范
 - **检索结果优先于你的自有知识**。如果 getInformation 返回的内容与你记忆不符，以检索结果为准
 - 不要在回答中混用检索结果和你自己的知识——如果要引用检索内容，确保完整引用，不被你自己的预设覆盖
-- 如果你发现检索结果与你记忆矛盾，以检索结果为标准答案`;
+- 如果你发现检索结果与你记忆矛盾，以检索结果为标准答案
+
+## 步数控制
+在发起任何工具调用之前，先问自己：
+1. 我是否已经收集到足够的信息来回答用户？
+2. 还有未完成的子任务需要继续查询吗？
+3. 用户指代是否模糊？如果是，先用 disambiguateEntity 反问用户确认具体实体，而不是自己猜测
+如果信息已充足或知识库中没有更多相关内容，直接生成回复，不要重复调用工具。
+
+## 兜底规则
+如果你已经尝试过 getInformation（知识库）和 searchWeb（联网搜索），两者都没有返回有效信息——说明知识库和 Bangumi 都没有收录这个内容。此时直接用你自己的知识回答，**不要重复调用工具**。不确定的内容如实告知用户。`;
 
 /** 缓存模型实例，避免重复创建 */
 let model: ReturnType<typeof createModel> | null = null
@@ -67,18 +88,43 @@ export async function agentNode(
   state: AgentState,
   config?: RunnableConfig,
 ): Promise<Partial<AgentState>> {
-  const { messages } = state;
+  const { messages, context } = state;
+
+  // 有历史摘要时追加到 system prompt 末尾
+  let systemContent = SYSTEM_PROMPT;
+  if (context) {
+    systemContent += `\n\n## 历史对话摘要\n以下是当前对话之前的内容摘要，请参考这些信息：\n${context}`;
+  }
 
   // 如果只有一条 user 消息，在开头插入 system prompt
-  const fullMessages: BaseMessage[] = messages.some(
+  const baseMessages: BaseMessage[] = messages.some(
     (m) => m._getType() === "system",
   )
     ? messages
-    : [new SystemMessage(SYSTEM_PROMPT), ...messages];
+    : [new SystemMessage(systemContent), ...messages];
+
+  // 去掉孤立 tool_calls（有 tool_calls 但无后续 tool 响应），防止 state 污染后报错
+  const fullMessages: BaseMessage[] = [];
+  for (let i = 0; i < baseMessages.length; i++) {
+    const msg = baseMessages[i];
+    if (msg instanceof AIMessage && (msg as AIMessage).tool_calls?.length) {
+      const next = baseMessages[i + 1];
+      if (!next || next._getType() !== "tool") continue; // 孤立，跳过
+    }
+    fullMessages.push(msg);
+  }
 
   const response = await getModel().invoke(fullMessages, {
     signal: config?.signal,
   });
+
+  // 决策日志：记录 agent 调用了哪些工具
+  if (response.tool_calls?.length) {
+    console.log(`[agent] 决策: tool_calls=${response.tool_calls.map(t => `${t.name}(${JSON.stringify(t.args)})`).join(', ')}`);
+  } else {
+    const text = typeof response.content === 'string' ? response.content.slice(0, 100) : '(非文本)';
+    console.log(`[agent] 决策: 直接回复 "${text}..."`);
+  }
 
   return { messages: [response] };
 }
@@ -100,6 +146,9 @@ export async function rewriteNode(
     model: "deepseek-v4-flash",
     apiKey: process.env.DEEPSEEK_API_KEY,
     temperature: 0.3,
+    modelKwargs: {
+      thinking: { type: "disabled" },
+    },
     configuration: {
       baseURL: "https://api.deepseek.com",
     },
@@ -122,13 +171,69 @@ export async function rewriteNode(
 }
 
 /**
+ * respondNode — 兜底回复节点。
+ * 当 tool_calls 次数达到上限时触发，不再调用工具，
+ * 让 LLM 基于已有信息（或自身知识）生成最终回复。
+ */
+export async function respondNode(
+  state: AgentState,
+): Promise<Partial<AgentState>> {
+  const { messages, context } = state;
+
+  const model = new ChatOpenAI({
+    model: "deepseek-v4-flash",
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    temperature: 0.3,
+    modelKwargs: {
+      thinking: { type: "disabled" },
+    },
+    configuration: {
+      baseURL: "https://api.deepseek.com",
+    },
+  });
+
+  let systemContent =
+    "你已经尝试过检索知识库和联网搜索，都没有找到足够的信息。请基于你自己的知识回答用户的问题。如果不知道，如实告知用户。回答简洁有条理，优先使用中文。";
+  if (context) {
+    systemContent += `\n\n## 历史对话摘要\n${context}`;
+  }
+
+  // 剥离所有 tool 相关消息（带 tool_calls 的 AIMessage + ToolMessage）
+  // 兜底模型没有绑定 tools，历史中出现 tool_calls 会导致 DeepSeek API 报错
+  const cleanMessages = messages.filter((m) => {
+    if (m._getType() === "system") return false;
+    if (m instanceof AIMessage && (m as AIMessage).tool_calls?.length) return false;
+    if (m._getType() === "tool") return false;
+    return true;
+  });
+
+  const response = await model.invoke([
+    new SystemMessage(systemContent),
+    ...cleanMessages,
+  ]);
+
+  return { messages: [response] };
+}
+
+/**
  * router — 条件边函数。
  * 根据 agent 的输出来决定下一步路由：
  * - 有 tool_calls → 走 "tools" 节点
  * - 没有 → 结束（"__end__"）
+ *
+ * 硬性限制：tool_calls 总次数 ≥ 8 时走 "respond" 兜底节点，防死循环。
  */
 export function router(state: AgentState): string {
   const lastMessage = state.messages[state.messages.length - 1];
+
+  // 统计历史 tool_calls 次数，超过上限走兜底回复
+  const toolCallCount = state.messages.filter(
+    (m) => m instanceof AIMessage && (m as AIMessage).tool_calls?.length,
+  ).length;
+  if (toolCallCount >= 8) {
+    console.log(`[router] 工具调用已达 ${toolCallCount} 次，转入兜底节点`);
+    return "respond";
+  }
 
   if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
     return "tools";

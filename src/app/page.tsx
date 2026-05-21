@@ -95,6 +95,68 @@ export default function Chat() {
   }, [messages])
   const isLoading = status === 'submitted' || status === 'streaming';
 
+  /* ── 5.4 长期会话记忆 ── */
+  const lastSavedAtRef = useRef<Record<string, number>>({});
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
+
+  /** 将对话保存到 Qdrant conversation_memory */
+  const saveConversation = useCallback((convId: string, useBeacon = false) => {
+    const msgs = messagesRef.current;
+    if (!convId || msgs.length < 2) return;
+    const now = Date.now();
+    const lastSaved = lastSavedAtRef.current[convId] || 0;
+    if (now - lastSaved < 30000) return; // 30s 去重
+    lastSavedAtRef.current[convId] = now;
+
+    const body = JSON.stringify({ conversationId: convId, messages: msgs });
+    if (useBeacon) {
+      navigator.sendBeacon('/api/chat/save-memory', new Blob([body], { type: 'application/json' }));
+    } else {
+      fetch('/api/chat/save-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }).catch(() => { /* 静默失败，不影响用户体验 */ });
+    }
+  }, []);
+
+  // ① beforeunload：页面关闭时保存
+  useEffect(() => {
+    const handleBeforeUnload = () => saveConversation(currentIdRef.current, true);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveConversation]);
+
+  // ② 30 分钟无活动自动保存
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      saveConversation(currentIdRef.current, false);
+    }, 30 * 60 * 1000);
+  }, [saveConversation]);
+
+  useEffect(() => {
+    const events = ['mousedown', 'keydown', 'touchstart'] as const;
+    const handler = () => resetIdleTimer();
+    // 首次渲染启动定时器
+    resetIdleTimer();
+    events.forEach((e) => window.addEventListener(e, handler));
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, handler));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [resetIdleTimer]);
+
+  // ③ 新建对话时保存前一个
+  const handleCreateConversation = useCallback(() => {
+    saveConversation(currentIdRef.current, false);
+    createConversation();
+  }, [saveConversation, createConversation]);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const roundRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -149,6 +211,7 @@ export default function Chat() {
       { body: { conversationId: currentId } },
     );
     setInput('');
+    resetIdleTimer();
   };
 
   const toggleCardCollapse = useCallback((key: string) => {
@@ -197,7 +260,7 @@ export default function Chat() {
         currentId={currentId}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(v => !v)}
-        onCreate={createConversation}
+        onCreate={handleCreateConversation}
         onDelete={deleteConversation}
         onSwitch={switchConversation}
       />
@@ -401,9 +464,6 @@ export default function Chat() {
                           if (unique.length === 0) return null;
 
                           const collapsed = collapsedCards.has(cardKey);
-                          const MAX_DISPLAY = 5;
-                          const displayItems = unique.slice(0, MAX_DISPLAY);
-                          const hasMore = unique.length > MAX_DISPLAY;
 
                           return (
                             <div
@@ -426,7 +486,7 @@ export default function Chat() {
                               {/* Content (hidden when collapsed) */}
                               {!collapsed && (
                                 <>
-                                  {displayItems.map((r: any, j: number) => (
+                                  {unique.map((r: any, j: number) => (
                                     <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-miku/10' : ''}`}>
                                       <div className="text-sm text-fg leading-relaxed break-words">{r.content}</div>
                                       {(r.metadata?.gameName || r.metadata?.charName) && (
@@ -434,11 +494,6 @@ export default function Chat() {
                                       )}
                                     </div>
                                   ))}
-                                  {hasMore && (
-                                    <div className="text-xs text-fg-muted mt-2 text-center">
-                                      ...还有 {unique.length - MAX_DISPLAY} 条结果
-                                    </div>
-                                  )}
                                 </>
                               )}
                             </div>
@@ -447,6 +502,92 @@ export default function Chat() {
                         return (
                           <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-fg-muted mt-1">
                             🔍 正在检索知识库...
+                          </div>
+                        );
+                      }
+
+                      /* ── Bangumi Web Search (collapsible, merged) ── */
+                      case 'tool-searchWeb': {
+                        if (part.state === 'output-available') {
+                          const firstWithResults = message.parts.findIndex(
+                            (p: any) =>
+                              p.type === 'tool-searchWeb' &&
+                              p.state === 'output-available' &&
+                              (Array.isArray(p.output) ? p.output.length : p.output?.data?.length),
+                          );
+                          if (i !== firstWithResults) return null;
+
+                          const allResults: any[] = [];
+                          for (const p of message.parts) {
+                            if (p.type === 'tool-searchWeb' && p.state === 'output-available') {
+                              const data = Array.isArray(p.output) ? p.output : p.output?.data;
+                              if (data?.length) allResults.push(...data);
+                            }
+                          }
+
+                          if (allResults.length === 0) return null;
+
+                          const seen = new Set<string>();
+                          const unique = allResults.filter((r: any) => {
+                            const key = r.name || r.id || '';
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                          });
+
+                          const collapsed = collapsedCards.has(cardKey);
+
+                          return (
+                            <div
+                              key={cardKey}
+                              className={`p-3 my-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all duration-200 ${
+                                collapsed ? 'opacity-60' : ''
+                              }`}
+                            >
+                              {/* Collapse toggle header */}
+                              <button
+                                onClick={() => toggleCardCollapse(cardKey)}
+                                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-emerald-700 dark:text-emerald-400 text-sm group"
+                              >
+                                <span className="text-xs transition-transform duration-200">
+                                  {collapsed ? '▶' : '▼'}
+                                </span>
+                                <span>🔍 Bangumi 搜索结果 ({unique.length} 条)</span>
+                              </button>
+
+                              {/* Content (hidden when collapsed) */}
+                              {!collapsed && (
+                                <>
+                                  {unique.map((r: any, j: number) => (
+                                    <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-emerald-200 dark:border-emerald-800' : ''}`}>
+                                      <div className="flex items-start gap-2">
+                                        <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                          r.type === 'character'
+                                            ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                                            : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                                        }`}>
+                                          {r.type === 'character' ? '角色' : '作品'}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                          <a href={r.url} target="_blank" rel="noopener noreferrer"
+                                            className="text-sm font-medium text-miku hover:underline">
+                                            {r.name}
+                                          </a>
+                                          {r.summary && (
+                                            <div className="text-xs text-fg-muted mt-0.5 line-clamp-2">{r.summary}</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                            🔍 正在搜索 Bangumi...
                           </div>
                         );
                       }

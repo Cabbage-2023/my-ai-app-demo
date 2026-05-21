@@ -78,7 +78,17 @@ body {
   --tw-prose-body: var(--color-fg);
   --tw-prose-headings: var(--color-fg);
   --tw-prose-bold: var(--color-fg);
+  --tw-prose-links: var(--color-miku);
   --tw-prose-code: var(--color-fg);
+  --tw-prose-pre-code: var(--color-fg);
   --tw-prose-pre-bg: var(--color-prose-bg);
   --tw-prose-code-bg: rgba(255, 255, 255, 0.05);
+  --tw-prose-quotes: var(--color-fg);
+  --tw-prose-captions: var(--color-fg-secondary);
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
+  --tw-prose-italic: var(--color-fg);
+  --tw-prose-strong: var(--color-fg);
+  --tw-prose-em: var(--color-fg);
+  --tw-prose-hr: var(--color-border);
 }

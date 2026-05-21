@@ -1,8 +1,13 @@
 import { createUIMessageStreamResponse } from 'ai';
 import type { UIMessage } from 'ai';
-import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
+import { ChatOpenAI } from '@langchain/openai';
 import { getAgent } from '@/lib/ai/langgraph/graph';
+import { searchConversationMemories } from '@/lib/ai/memory';
+
+/** 6 轮对话对应的消息数量阈值（6 user + 6 assistant） */
+const COMPRESSION_THRESHOLD = 12;
 
 /** 将 UIMessage[] 转为 LangChain BaseMessage[] */
 function toLangChainMessages(msgs: UIMessage[]): BaseMessage[] {
@@ -14,12 +19,70 @@ function toLangChainMessages(msgs: UIMessage[]): BaseMessage[] {
   });
 }
 
+/** 将早期对话消息压缩为摘要 */
+async function compressMessages(msgs: UIMessage[]): Promise<string> {
+  const text = msgs
+    .map((m) => {
+      const role = m.role === 'user' ? '用户' : 'AI';
+      const content = m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('') ?? '';
+      return `${role}: ${content}`;
+    })
+    .join('\n');
+
+  const model = new ChatOpenAI({
+    model: 'deepseek-v4-flash',
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    temperature: 0.3,
+    modelKwargs: {
+      thinking: { type: 'disabled' },
+    },
+    configuration: { baseURL: 'https://api.deepseek.com' },
+  });
+
+  const response = await model.invoke([
+    new SystemMessage(
+      '将以下对话压缩为简洁的中文摘要，保留关键信息：讨论的游戏/角色名称、用户偏好、已获得的信息。直接输出摘要，不要加前缀。',
+    ),
+    new HumanMessage(text),
+  ]);
+
+  return typeof response.content === 'string'
+    ? response.content
+    : response.content.map((c) => ('text' in c ? c.text : '')).join('');
+}
+
 export async function POST(req: Request) {
   const { messages, conversationId }: {
     messages: UIMessage[];
     conversationId?: string;
   } = await req.json();
-  const langChainMessages = toLangChainMessages(messages.slice(-6));
+
+  // 超过阈值时压缩早期对话，保留最近 6 轮原始消息
+  let langChainMessages: BaseMessage[];
+  let compressedContext = '';
+
+  if (messages.length > COMPRESSION_THRESHOLD) {
+    const earlyMessages = messages.slice(0, messages.length - COMPRESSION_THRESHOLD);
+    const recentMessages = messages.slice(-COMPRESSION_THRESHOLD);
+    compressedContext = await compressMessages(earlyMessages);
+    langChainMessages = toLangChainMessages(recentMessages);
+  } else {
+    langChainMessages = toLangChainMessages(messages);
+  }
+
+  // 检索相关的历史对话记忆，追加到 context
+  const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
+  if (lastUserMsg) {
+    const lastText = lastUserMsg.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('') ?? '';
+    if (lastText) {
+      const memories = await searchConversationMemories(lastText, 3);
+      if (memories) {
+        compressedContext = compressedContext
+          ? `${compressedContext}\n\n## 历史对话记忆\n${memories}`
+          : `## 历史对话记忆\n${memories}`;
+      }
+    }
+  }
 
   const agent = getAgent();
   const threadId = conversationId || crypto.randomUUID();
@@ -41,7 +104,7 @@ export async function POST(req: Request) {
 
       try {
         const eventStream = await agent.stream(
-          { messages: langChainMessages },
+          { messages: langChainMessages, context: compressedContext },
           {
             configurable: { thread_id: threadId },
             streamMode: 'updates',
@@ -98,6 +161,19 @@ export async function POST(req: Request) {
                 toolCallId: tm.tool_call_id,
                 output,
               });
+            }
+          }
+
+          // ── respond 节点输出（兜底回复） ──
+          if (event.respond) {
+            const msg: AIMessage = event.respond.messages[0];
+            const content = typeof msg.content === 'string' ? msg.content : '';
+            if (content) {
+              if (!hasText) {
+                controller.enqueue({ type: 'text-start' as const, id: textId });
+                hasText = true;
+              }
+              controller.enqueue({ type: 'text-delta' as const, id: textId, delta: content });
             }
           }
         }

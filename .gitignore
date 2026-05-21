@@ -46,5 +46,11 @@ next-env.d.ts
 # windows
 Thumbs.db
 
+# npm lockfile (project uses pnpm)
+package-lock.json
+
 # crawler data cache (gitignored - includes embedded-chunks.jsonl, parsed/ data)
 /scripts/data/
+
+# model cache (e.g. Splade sparse embedding model)
+/local_cache/

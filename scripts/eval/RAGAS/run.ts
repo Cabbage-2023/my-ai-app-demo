@@ -258,7 +258,7 @@ async function main() {
     ragasAggregate: output.ragas.aggregate!,
     crossValidation: output.crossValidation,
   })
-  output['history'] = history
+  ;(output as any).history = history
 
   await writeFile(RAGAS_RESULT_PATH, JSON.stringify(output, null, 2), 'utf-8')
   console.error(`\nRAGAS 结果已保存到: ${RAGAS_RESULT_PATH}（累计 ${history.length} 次运行）`)
