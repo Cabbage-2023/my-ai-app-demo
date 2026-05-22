@@ -5,7 +5,7 @@ FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY pnpm-lock.yaml package.json .npmrc ./
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml .npmrc ./
 RUN corepack enable && pnpm install --frozen-lockfile
 
 # ============================================================
