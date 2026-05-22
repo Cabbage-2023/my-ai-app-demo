@@ -4,7 +4,8 @@ import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages
 import type { BaseMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { getAgent } from '@/lib/ai/langgraph/graph';
-import { searchConversationMemories } from '@/lib/ai/memory';
+import { saveSingleQAPair } from '@/lib/ai/memory';
+import { setConversationId } from '@/lib/ai/langgraph/tools';
 
 /** 6 轮对话对应的消息数量阈值（6 user + 6 assistant） */
 const COMPRESSION_THRESHOLD = 12;
@@ -70,22 +71,11 @@ export async function POST(req: Request) {
     langChainMessages = toLangChainMessages(messages);
   }
 
-  // 检索相关的历史对话记忆，追加到 context
-  const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
-  if (lastUserMsg) {
-    const lastText = lastUserMsg.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('') ?? '';
-    if (lastText) {
-      const memories = await searchConversationMemories(lastText, 3);
-      if (memories) {
-        compressedContext = compressedContext
-          ? `${compressedContext}\n\n## 历史对话记忆\n${memories}`
-          : `## 历史对话记忆\n${memories}`;
-      }
-    }
-  }
-
   const agent = getAgent();
   const threadId = conversationId || crypto.randomUUID();
+
+  // 设置 conversationId，供 searchConversationMemory tool 使用
+  setConversationId(threadId);
 
   // 后端中止：客户端断连时取消 agent 执行，避免 token 浪费
   const abortController = new AbortController();
@@ -98,11 +88,28 @@ export async function POST(req: Request) {
       abortController.abort();
     },
     async start(controller) {
-      // 在 try 外声明，供 catch 块访问
-      let textId = '';
-      let hasText = false;
+      let fullAssistantText = '';
+
+      const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+      // 将文本分批推送，每批之间留出延迟让浏览器渲染，防止主线程卡死
+      async function streamText(text: string) {
+        const id = crypto.randomUUID();
+        controller.enqueue({ type: 'text-start' as const, id });
+        const BATCH = 5;
+        const DELAY = 12;
+        for (let i = 0; i < text.length; i += BATCH) {
+          if (abortController.signal.aborted) break;
+          controller.enqueue({ type: 'text-delta' as const, id, delta: text.slice(i, i + BATCH) });
+          await sleep(DELAY);
+        }
+        if (!abortController.signal.aborted) {
+          controller.enqueue({ type: 'text-end' as const, id });
+        }
+      }
 
       try {
+        // streamMode: 'updates' — 图执行完整的非流式路径，工具调用不受影响
         const eventStream = await agent.stream(
           { messages: langChainMessages, context: compressedContext },
           {
@@ -112,17 +119,12 @@ export async function POST(req: Request) {
           },
         );
 
-        // uimessage chunk 协议要求 text-start/delta/end 序列
-        textId = crypto.randomUUID();
-
         for await (const event of eventStream) {
           if (abortController.signal.aborted) break;
-          // ── agent 节点输出 ──
+
+          // agent 节点输出
           if (event.agent) {
             const msg: AIMessage = event.agent.messages[0];
-            const content = typeof msg.content === 'string' ? msg.content : '';
-
-            // 有 tool_calls → 发射 tool-input-available（前端渲染 loading 卡片）
             if (msg.tool_calls?.length) {
               for (const tc of msg.tool_calls) {
                 controller.enqueue({
@@ -133,22 +135,17 @@ export async function POST(req: Request) {
                 });
               }
             }
-
-            // 有文本内容 → text-start / text-delta
-            if (!msg.tool_calls?.length && content) {
-              if (!hasText) {
-                controller.enqueue({ type: 'text-start' as const, id: textId });
-                hasText = true;
-              }
-              controller.enqueue({ type: 'text-delta' as const, id: textId, delta: content });
+            const agentText = typeof msg.content === 'string' ? msg.content : '';
+            if (agentText) {
+              fullAssistantText += agentText;
+              await streamText(agentText);
             }
           }
 
-          // ── tools 节点输出（tool 执行结果） ──
+          // tools 节点输出
           if (event.tools) {
             const toolMessages: { tool_call_id: string; content: string }[] =
               event.tools.messages ?? [];
-
             for (const tm of toolMessages) {
               let output: unknown;
               try {
@@ -164,31 +161,38 @@ export async function POST(req: Request) {
             }
           }
 
-          // ── respond 节点输出（兜底回复） ──
+          // respond 节点输出（兜底回复）
           if (event.respond) {
-            const msg: AIMessage = event.respond.messages[0];
-            const content = typeof msg.content === 'string' ? msg.content : '';
-            if (content) {
-              if (!hasText) {
-                controller.enqueue({ type: 'text-start' as const, id: textId });
-                hasText = true;
-              }
-              controller.enqueue({ type: 'text-delta' as const, id: textId, delta: content });
+            const msg = event.respond.messages[0];
+            const text = typeof msg.content === 'string' ? msg.content : '';
+            if (text) {
+              fullAssistantText += text;
+              await streamText(text);
             }
           }
         }
 
-        if (hasText) {
-          controller.enqueue({ type: 'text-end' as const, id: textId });
-        }
         controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
+
+        if (fullAssistantText && threadId) {
+          const lastUserMsg = messages.filter((m) => m.role === 'user').pop();
+          if (lastUserMsg) {
+            const userText = lastUserMsg.parts
+              ?.filter((p: any) => p.type === 'text')
+              .map((p: any) => p.text ?? '')
+              .join('') ?? '';
+            if (userText) {
+              saveSingleQAPair(threadId, userText, fullAssistantText)
+                .catch((e) => console.error('save memory error:', e));
+            }
+          }
+        }
       } catch (e) {
         const errMsg = (e as Error).message;
         const errName = (e as Error).name;
         const isAbort = errName === 'AbortError' || abortController.signal.aborted;
 
         if (isAbort) {
-          if (hasText) controller.enqueue({ type: 'text-end' as const, id: textId });
           controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
           return;
         }

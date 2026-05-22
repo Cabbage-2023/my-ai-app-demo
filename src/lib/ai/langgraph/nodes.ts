@@ -43,6 +43,9 @@ searchWeb 工具带有 persist 参数（默认 false）：
 
 **注意：除非用户明确提到多个游戏且关系非常确定（如"把 XX 和 YY 都存了"），否则 persist=true 一次只存一个游戏。搜索结果可能包含系列相关作品，不要因为搜到了就批量入库。**
 
+## 历史对话记忆
+使用 searchConversationMemory 工具搜索当前对话中之前讨论过的内容。当你觉得用户可能是在延续之前的话题、或者想回忆之前提到过的某个角色/作品时调用。搜索词以关键实体名称为主，不要用完整句子。
+
 ## 事实引用规范
 - **检索结果优先于你的自有知识**。如果 getInformation 返回的内容与你记忆不符，以检索结果为准
 - 不要在回答中混用检索结果和你自己的知识——如果要引用检索内容，确保完整引用，不被你自己的预设覆盖
@@ -90,13 +93,11 @@ export async function agentNode(
 ): Promise<Partial<AgentState>> {
   const { messages, context } = state;
 
-  // 有历史摘要时追加到 system prompt 末尾
   let systemContent = SYSTEM_PROMPT;
   if (context) {
     systemContent += `\n\n## 历史对话摘要\n以下是当前对话之前的内容摘要，请参考这些信息：\n${context}`;
   }
 
-  // 如果只有一条 user 消息，在开头插入 system prompt
   const baseMessages: BaseMessage[] = messages.some(
     (m) => m._getType() === "system",
   )
@@ -109,16 +110,16 @@ export async function agentNode(
     const msg = baseMessages[i];
     if (msg instanceof AIMessage && (msg as AIMessage).tool_calls?.length) {
       const next = baseMessages[i + 1];
-      if (!next || next._getType() !== "tool") continue; // 孤立，跳过
+      if (!next || next._getType() !== "tool") continue;
     }
     fullMessages.push(msg);
   }
 
+  // 节点保持原子性：用 invoke() 而非 stream()，流式输出由 LangGraph 图层面的 streamMode: "messages" 处理
   const response = await getModel().invoke(fullMessages, {
     signal: config?.signal,
   });
 
-  // 决策日志：记录 agent 调用了哪些工具
   if (response.tool_calls?.length) {
     console.log(`[agent] 决策: tool_calls=${response.tool_calls.map(t => `${t.name}(${JSON.stringify(t.args)})`).join(', ')}`);
   } else {
@@ -177,6 +178,7 @@ export async function rewriteNode(
  */
 export async function respondNode(
   state: AgentState,
+  config?: RunnableConfig,
 ): Promise<Partial<AgentState>> {
   const { messages, context } = state;
 
@@ -207,6 +209,7 @@ export async function respondNode(
     return true;
   });
 
+  // 节点保持原子性：用 invoke()，流式输出由 LangGraph 图层面的 streamMode: "messages" 处理
   const response = await model.invoke([
     new SystemMessage(systemContent),
     ...cleanMessages,
@@ -230,7 +233,7 @@ export function router(state: AgentState): string {
   const toolCallCount = state.messages.filter(
     (m) => m instanceof AIMessage && (m as AIMessage).tool_calls?.length,
   ).length;
-  if (toolCallCount >= 8) {
+  if (toolCallCount >= 5) {
     console.log(`[router] 工具调用已达 ${toolCallCount} 次，转入兜底节点`);
     return "respond";
   }

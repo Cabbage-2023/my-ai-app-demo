@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Next.js
+.next
+out
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.production
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test / Eval
+scripts/eval/DeepEval/.truths/
+scripts/eval/*.csv
+scripts/eval/results/
+
+# Data
+scripts/data/
+
+# Docker
+docker-compose.yml
+Dockerfile

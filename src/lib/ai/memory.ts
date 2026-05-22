@@ -1,108 +1,102 @@
 /**
  * 长期会话记忆管理
  *
- * 负责将对话总结存储到 Qdrant conversation_memory collection，
- * 以及在新对话中检索相关的历史记忆。
+ * QA 对原文直存模式：将对话按 QA 对分拆，直接存储到 Qdrant conversation_memory collection，
+ * 不做 LLM 摘要。搜索时使用 dense + sparse 混合搜索（RRF 合并）。
+ *
+ * 使用方式：
+ * - 保存：route.ts 中 stream 结束后调用 saveSingleQAPair()
+ * - 搜索：LangGraph agent 通过 searchConversationMemory tool 调用
  */
 
 import { type UIMessage } from 'ai';
-import { ChatOpenAI } from '@langchain/openai';
-import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { generateEmbedding } from '@/lib/ai/embedding';
+import { generateSparseEmbedding } from '@/lib/ai/sparse-embedding';
 import {
   ensureConversationMemoryCollection,
   upsertMemoryPoint,
-  searchConversationMemory,
+  searchConversationMemoryHybrid,
 } from '@/lib/qdrant';
 
-/** 保存一条对话记忆 */
+/** 保存单个 QA 对到 Qdrant（由 route.ts 在 stream 结束后调用） */
+export async function saveSingleQAPair(
+  conversationId: string,
+  userText: string,
+  assistantText: string,
+): Promise<void> {
+  if (!conversationId || !userText || !assistantText) return
+
+  await ensureConversationMemoryCollection()
+
+  const text = `用户: ${userText}\nAI: ${assistantText}`
+  const [dense, sparse] = await Promise.all([
+    generateEmbedding(text),
+    Promise.resolve(generateSparseEmbedding(text)),
+  ])
+
+  await upsertMemoryPoint(
+    dense,
+    {
+      conversationId,
+      qaId: `${conversationId}-${Date.now()}`,
+      userMessage: userText,
+      assistantMessage: assistantText,
+      userId: 'default',
+      createdAt: Date.now(),
+    },
+    { bm25: sparse },
+  )
+}
+
+/** 保存整段对话的所有 QA 对到 Qdrant（兼容旧格式，供 save-memory API 使用） */
 export async function saveConversationMemory(
   conversationId: string,
   messages: UIMessage[],
 ): Promise<void> {
-  // 至少要有 2 条消息才值得存
-  if (messages.length < 2) return;
+  if (messages.length < 2) return
 
-  // 1. 确保 collection 存在
-  await ensureConversationMemoryCollection();
+  await ensureConversationMemoryCollection()
 
-  // 2. 将消息序列化为文本
-  const text = messages
-    .map((m) => {
-      const role = m.role === 'user' ? '用户' : 'AI';
-      const content =
-        m.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('') ?? '';
-      return `${role}: ${content}`;
-    })
-    .join('\n');
+  let lastUserText = ''
+  let lastAssistantText = ''
 
-  // 3. LLM 总结
-  const model = new ChatOpenAI({
-    model: 'deepseek-v4-flash',
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    temperature: 0.3,
-    modelKwargs: {
-      thinking: { type: 'disabled' },
-    },
-    configuration: { baseURL: 'https://api.deepseek.com' },
-  });
+  for (const msg of messages) {
+    const text = msg.parts
+      ?.filter((p: any) => p.type === 'text')
+      .map((p: any) => p.text ?? '')
+      .join('') ?? ''
 
-  const response = await model.invoke([
-    new SystemMessage(
-      '你是一个对话摘要助手。将以下对话总结为简洁的中文摘要，并提取标签和关键事实。' +
-      '按以下 JSON 格式输出，不要加多余内容：\n' +
-      '{"summary": "对话摘要（2-3句话）", "tags": ["标签1", "标签2"], "keyFacts": ["关键事实1", "关键事实2"]}',
-    ),
-    new HumanMessage(text),
-  ]);
-
-  const content = typeof response.content === 'string'
-    ? response.content
-    : response.content.map((c) => ('text' in c ? c.text : '')).join('');
-
-  // 4. 解析 LLM 输出
-  let parsed: { summary: string; tags: string[]; keyFacts: string[] };
-  try {
-    // 清理可能的 Markdown 代码块包裹
-    const clean = content.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim();
-    parsed = JSON.parse(clean);
-  } catch {
-    // 解析失败时用整个文本作为摘要
-    parsed = { summary: content.slice(0, 500), tags: [], keyFacts: [] };
+    if (msg.role === 'user') {
+      // 如果已经有上一对没保存的 user+assistant，先存
+      if (lastUserText && lastAssistantText) {
+        await saveSingleQAPair(conversationId, lastUserText, lastAssistantText)
+        lastAssistantText = ''
+      }
+      lastUserText = text
+    } else if (msg.role === 'assistant' && lastUserText) {
+      lastAssistantText = text
+      await saveSingleQAPair(conversationId, lastUserText, lastAssistantText)
+      lastUserText = ''
+      lastAssistantText = ''
+    }
   }
-
-  // 5. 生成 embedding
-  const embedding = await generateEmbedding(parsed.summary);
-
-  // 6. 写入 Qdrant
-  const now = Date.now();
-  await upsertMemoryPoint(embedding, {
-    conversationId,
-    summary: parsed.summary,
-    tags: parsed.tags,
-    keyFacts: parsed.keyFacts,
-    messageCount: messages.length,
-    createdAt: now,
-    updatedAt: now,
-  });
 }
 
-/** 搜索与当前查询相关的历史对话记忆 */
+/** 搜索当前对话的历史记忆（按 conversationId 过滤） */
 export async function searchConversationMemories(
   query: string,
+  conversationId?: string,
   limit = 3,
 ): Promise<string> {
-  const embedding = await generateEmbedding(query);
-  const results = await searchConversationMemory(embedding, limit);
+  const [dense, sparse] = await Promise.all([
+    generateEmbedding(query),
+    Promise.resolve(generateSparseEmbedding(query)),
+  ])
 
-  if (results.length === 0) return '';
+  const results = await searchConversationMemoryHybrid(dense, sparse, limit, conversationId)
+  if (results.length === 0) return ''
 
   return results
-    .map((r, i) => {
-      const tags = (r.metadata.tags as string[])?.length
-        ? `[${(r.metadata.tags as string[]).join(', ')}]`
-        : '';
-      return `${i + 1}. ${r.content} ${tags}`;
-    })
-    .join('\n');
+    .map((r, i) => `${i + 1}. ${r.content}`)
+    .join('\n')
 }

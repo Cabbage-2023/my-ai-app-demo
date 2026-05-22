@@ -1,3 +1,5 @@
+// @ts-nocheck — 依赖已删除的 scripts/lib/qdrant.ts（函数签名与 src/lib/qdrant.ts 不兼容），保留供后续 eval 使用
+
 /**
  * Step 1: 生成质量评估 — Faithfulness + Answer Relevance
  *

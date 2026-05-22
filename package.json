@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "eval:gen": "pnpm tsx scripts/eval/evaluate-generation.ts",
+    "eval:ragas": "pnpm tsx scripts/eval/RAGAS/run.ts",
+    "eval:deepeval": "pnpm tsx scripts/eval/DeepEval/run.ts",
+    "eval:assert": "python scripts/eval/DeepEval/assert_test.py",
+    "eval:full": "pnpm eval:deepeval && pnpm eval:assert"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",

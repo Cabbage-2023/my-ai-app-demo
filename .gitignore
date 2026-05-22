@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# deepeval - local telemetry
+.deepeval/
+
 # claude code - session data, plans, worktrees, memory
 .claude/
 

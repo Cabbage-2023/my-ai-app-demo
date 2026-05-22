@@ -1,5 +1,28 @@
-import * as cheerio from 'cheerio'
-import type { GameListItem } from '../types'
+/**
+ * Bangumi 排行榜页面解析器
+ *
+ * 解析排行榜列表页 HTML，提取游戏 ID、名称、排名、评分等数据。
+ * 兼容两种排序方式：
+ *   - https://bangumi.tv/game/tag/Galgame/?sort=rank      （按评分排序）
+ *   - https://bangumi.tv/game/tag/Galgame/?sort=collects   （按评价数排序）
+ *
+ * 用法：
+ *   const html = await fetchHTML('/game/tag/Galgame/?sort=collects&page=1');
+ *   const list = parseGameList(html);
+ *   // → [{ id, name, nameJP, rank, score, ratingCount, coverUrl }]
+ */
+
+import * as cheerio from 'cheerio';
+
+export interface GameListItem {
+  id: number
+  name: string
+  nameJP: string
+  rank: number
+  score: number
+  ratingCount: number
+  coverUrl: string
+}
 
 export function parseGameList(html: string): GameListItem[] {
   const $ = cheerio.load(html)

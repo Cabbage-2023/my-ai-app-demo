@@ -462,6 +462,35 @@ async function checkDedup(subjectId: number): Promise<boolean> {
   return existing.length > 0;
 }
 
+// ── 日志 ───────────────────────────────────────────────────
+
+const LOG_PATH = path.resolve('logs/backfill.jsonl')
+
+interface BackfillLogEntry {
+  time: string
+  subjectId: number
+  name: string
+  status: 'accepted' | 'rejected' | 'error'
+  nsfw: boolean
+  chunks: number
+  comments: number
+  reviews: number
+  charComments: number
+  errors: string[]
+}
+
+async function appendBackfillLog(entry: BackfillLogEntry): Promise<void> {
+  try {
+    await mkdir(path.dirname(LOG_PATH), { recursive: true })
+    const line = JSON.stringify(entry) + '\n'
+    // 用 append 模式写入（Node.js 18+ 支持 flag）
+    const { appendFile } = await import('node:fs/promises')
+    await appendFile(LOG_PATH, line, 'utf-8')
+  } catch {
+    // 日志写入失败不阻塞主流程
+  }
+}
+
 // ── 主入口 ───────────────────────────────────────────────
 
 export async function backfillBySubjectId(
@@ -477,19 +506,25 @@ export async function backfillBySubjectId(
     // ── 质量门禁 ──
     const gate = qualityGate(subject);
     if (!gate.pass) {
-      return {
-        success: false, status: 'rejected',
+      const result = {
+        success: false, status: 'rejected' as const,
         message: `质量门禁未通过：${gate.reasons.join('；')}`,
         details: { subjectName: displayName, subjectId, sources: { gameIntro: false, characters: 0, comments: 0, reviews: 0, charComments: 0 }, chunksPersisted: 0 },
       };
+      appendBackfillLog({ time: new Date().toISOString(), subjectId, name: displayName, status: 'rejected', nsfw: false, chunks: 0, comments: 0, reviews: 0, charComments: 0, errors: gate.reasons });
+      return result;
     }
 
     // ── 去重检查 ──
     if (inFlightBackfills.has(subjectId)) {
-      return { success: false, status: 'rejected', message: `${displayName} 正在回填中`, details: { subjectName: displayName, subjectId, sources: { gameIntro: false, characters: 0, comments: 0, reviews: 0, charComments: 0 }, chunksPersisted: 0 } };
+      const result = { success: false, status: 'rejected' as const, message: `${displayName} 正在回填中`, details: { subjectName: displayName, subjectId, sources: { gameIntro: false, characters: 0, comments: 0, reviews: 0, charComments: 0 }, chunksPersisted: 0 } };
+      appendBackfillLog({ time: new Date().toISOString(), subjectId, name: displayName, status: 'rejected', nsfw: false, chunks: 0, comments: 0, reviews: 0, charComments: 0, errors: ['正在回填中'] });
+      return result;
     }
     if (await checkDedup(subjectId)) {
-      return { success: false, status: 'rejected', message: `知识库中已存在 ${displayName} 的数据`, details: { subjectName: displayName, subjectId, sources: { gameIntro: false, characters: 0, comments: 0, reviews: 0, charComments: 0 }, chunksPersisted: 0 } };
+      const result = { success: false, status: 'rejected' as const, message: `知识库中已存在 ${displayName} 的数据`, details: { subjectName: displayName, subjectId, sources: { gameIntro: false, characters: 0, comments: 0, reviews: 0, charComments: 0 }, chunksPersisted: 0 } };
+      appendBackfillLog({ time: new Date().toISOString(), subjectId, name: displayName, status: 'rejected', nsfw: false, chunks: 0, comments: 0, reviews: 0, charComments: 0, errors: ['已存在'] });
+      return result;
     }
     inFlightBackfills.add(subjectId);
 
@@ -517,7 +552,9 @@ export async function backfillBySubjectId(
 
     if (allChunks.length === 0) {
       inFlightBackfills.delete(subjectId);
-      return { success: false, status: 'rejected', message: '无回填内容', details: { subjectName: displayName, subjectId, sources: { gameIntro: subjectChunks.length > 0, characters: charChunks.length, comments: commentChunks.length, reviews: reviewChunks.length, charComments: charCommentChunks.length }, chunksPersisted: 0 } };
+      const result = { success: false, status: 'rejected' as const, message: '无回填内容', details: { subjectName: displayName, subjectId, sources: { gameIntro: subjectChunks.length > 0, characters: charChunks.length, comments: commentChunks.length, reviews: reviewChunks.length, charComments: charCommentChunks.length }, chunksPersisted: 0 } };
+      appendBackfillLog({ time: new Date().toISOString(), subjectId, name: displayName, status: 'rejected', nsfw: false, chunks: 0, comments: saved.comments, reviews: saved.reviews, charComments: saved.charComments, errors: ['无回填内容'] });
+      return result;
     }
 
     // ── Phase 5: 异步持久化 → Qdrant ──
@@ -533,13 +570,16 @@ export async function backfillBySubjectId(
         await disconnectBrowser();
       });
 
-    return {
-      success: true, status: 'accepted',
+    const result = {
+      success: true, status: 'accepted' as const,
       message: `${displayName} 已接受回填（${allChunks.length} 个分块正在后台处理）`,
       details: { subjectName: displayName, subjectId, sources: { gameIntro: subjectChunks.length > 0, characters: charChunks.length, comments: commentChunks.length, reviews: reviewChunks.length, charComments: charCommentChunks.length }, chunksPersisted: allChunks.length },
     };
+    appendBackfillLog({ time: new Date().toISOString(), subjectId, name: displayName, status: 'accepted', nsfw: false, chunks: allChunks.length, comments: saved.comments, reviews: saved.reviews, charComments: saved.charComments, errors: [] });
+    return result;
   } catch (err) {
     const msg = (err as Error).message;
+    appendBackfillLog({ time: new Date().toISOString(), subjectId, name: `#${subjectId}`, status: 'error', nsfw: false, chunks: 0, comments: 0, reviews: 0, charComments: 0, errors: [msg] });
     return { success: false, status: 'error', message: `回填失败：${msg}` };
   }
 }

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { type UIMessage } from 'ai';
 import { saveConversationMemory } from '@/lib/ai/memory';
 
@@ -15,16 +16,16 @@ export async function POST(req: Request) {
     } = await req.json();
 
     if (!conversationId || !messages?.length) {
-      return Response.json({ success: false, error: '缺少 conversationId 或 messages' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '缺少 conversationId 或 messages' }, { status: 400 });
     }
 
     // 异步存储，不阻塞响应
     await saveConversationMemory(conversationId, messages);
 
-    return Response.json({ success: true });
+    return NextResponse.json({ success: true });
   } catch (e) {
     console.error('save-memory error:', e);
-    return Response.json({ success: false, error: (e as Error).message }, { status: 500 });
+    return NextResponse.json({ success: false, error: (e as Error).message }, { status: 500 });
   }
 }
 

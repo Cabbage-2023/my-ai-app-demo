@@ -6,6 +6,7 @@ import { z } from "zod";
 import { generateEmbedding, generateSparseEmbedding } from "@/lib/ai/embedding";
 import { searchSimilar, searchSparse } from "@/lib/qdrant";
 import { rerank } from "@/lib/ai/reranker";
+import { searchConversationMemories } from "@/lib/ai/memory";
 
 /**
  * getInformation — 从 Qdrant 知识库中检索与问题相关的信息。
@@ -221,7 +222,7 @@ export const rewriteQueryTool = new DynamicStructuredTool({
 
 // ── Bangumi API 搜索工具函数 ────────────────────────────
 
-import { COMPANY_SEARCH_ALIASES, PRODUCER_GAMES } from '../../../../scripts/lib/name-aliases';
+import { COMPANY_SEARCH_ALIASES, PRODUCER_GAMES } from '@/lib/ai/name-aliases';
 
 const BANGUMI_API_BASE = 'https://api.bgm.tv';
 
@@ -448,8 +449,37 @@ export const disambiguateEntityTool = new DynamicStructuredTool({
   },
 });
 
+// ── ConversationId 注入（route.ts 在调用 agent 前设置） ────────
+
+/** 当前活跃的 conversationId（route.ts 每次请求前设置，单线程安全） */
+let _activeConversationId = '';
+
+export function setConversationId(id: string) {
+  _activeConversationId = id;
+}
+
+/**
+ * searchConversationMemory — 搜索当前对话的历史记忆。
+ * AI 需要回忆当前对话中之前讨论过的具体内容时调用。
+ */
+export const searchConversationMemoryTool = new DynamicStructuredTool({
+  name: "searchConversationMemory",
+  description:
+    "搜索当前对话的历史记忆，找回之前讨论过的具体内容。" +
+    "当你需要回忆当前对话中之前提到过的内容时调用，比如用户提到'之前说的那个角色''刚才提到的游戏'等。",
+  schema: z.object({
+    query: z.string().describe("搜索关键词，提取关键实体名即可。如'白羽 性格''Summer Pockets 评价'"),
+  }),
+  func: async ({ query }) => {
+    if (!_activeConversationId) return "暂无历史对话记忆可搜索";
+    const results = await searchConversationMemories(query, _activeConversationId, 3);
+    if (!results) return "未找到相关历史对话记录";
+    return results;
+  },
+});
+
 /** 所有 Tool 的汇总数组 */
-export const tools = [getInformationTool, rewriteQueryTool, searchWebTool, disambiguateEntityTool];
+export const tools = [getInformationTool, rewriteQueryTool, searchWebTool, disambiguateEntityTool, searchConversationMemoryTool];
 
 /** 预构建的 ToolNode，供 LangGraph 直接使用 */
 export const toolNode = new ToolNode(tools);

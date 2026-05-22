@@ -7,6 +7,13 @@ const COLLECTION = 'resources_v2'
 const SPARSE_VECTOR_NAME = 'bm25'
 const MEMORY_COLLECTION = 'conversation_memory'
 
+/** 生成带 API Key 认证的请求头 */
+function headers(): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (process.env.QDRANT_API_KEY) h['api-key'] = process.env.QDRANT_API_KEY
+  return h
+}
+
 
 export interface QdrantCondition {
   key: string
@@ -36,7 +43,7 @@ export async function upsertPoint(
   if (sparseVectors) point.sparse_vectors = sparseVectors
   const res = await fetch(`${QDRANT_URL}/collections/${COLLECTION}/points`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(),
     body: JSON.stringify({
       points: [point],
     }),
@@ -58,7 +65,7 @@ export async function searchSimilar(
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(),
     body: JSON.stringify(body),
   })
 
@@ -101,7 +108,7 @@ export async function searchSparse(
 
   const res = await fetch(`${QDRANT_URL}/collections/${COLLECTION}/points/search`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(),
     body: JSON.stringify(body),
   })
 
@@ -128,14 +135,17 @@ export async function searchSparse(
 
 /** 确保 conversation_memory collection 存在（幂等） */
 export async function ensureConversationMemoryCollection(): Promise<void> {
-  const exists = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}`, { method: 'GET' })
+  const exists = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}`, {
+    method: 'GET',
+    headers: headers(),
+  })
     .then(r => r.ok)
     .catch(() => false)
 
   if (!exists) {
     const res = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers(),
       body: JSON.stringify({
         name: MEMORY_COLLECTION,
         vectors: { size: 1024, distance: 'Cosine' },
@@ -150,16 +160,19 @@ export async function ensureConversationMemoryCollection(): Promise<void> {
   }
 }
 
-/** 写入一条对话记忆 */
+/** 写入一条对话记忆（支持 sparse vectors） */
 export async function upsertMemoryPoint(
   vector: number[],
   payload: Record<string, any>,
+  sparseVectors?: Record<string, { indices: number[]; values: number[] }>,
 ): Promise<void> {
   const id = ++pointCounter
+  const point: any = { id, vector, payload }
+  if (sparseVectors) point.sparse_vectors = sparseVectors
   const res = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ points: [{ id, vector, payload }] }),
+    headers: headers(),
+    body: JSON.stringify({ points: [point] }),
   })
   if (!res.ok) {
     const text = await res.text()
@@ -167,46 +180,149 @@ export async function upsertMemoryPoint(
   }
 }
 
-/** 搜索对话记忆 */
-export async function searchConversationMemory(
-  vector: number[],
+/** 对话记忆混合搜索：dense + sparse 各自搜后用 RRF 合并 */
+export async function searchConversationMemoryHybrid(
+  denseVector: number[],
+  sparseVector: { indices: number[]; values: number[] },
   limit = 3,
+  conversationId?: string,
 ): Promise<QdrantSearchResult[]> {
-  const res = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points/search`, {
+  const denseLimit = limit * 4
+  const sparseLimit = limit * 4
+  const k = 60 // RRF 常数
+  const MIN_SCORE = 0.15 // RRF 分数阈值
+
+  // 有 conversationId 时只搜当前对话
+  const filter = conversationId
+    ? { must: [{ key: 'conversationId', match: { value: conversationId } }] }
+    : undefined
+
+  const searchBody: Record<string, any> = { vector: denseVector, limit: denseLimit, with_payload: true }
+  if (filter) searchBody.filter = filter
+
+  const sparseSearchBody: Record<string, any> = {
+    vector: { name: SPARSE_VECTOR_NAME, vector: sparseVector },
+    limit: sparseLimit,
+    with_payload: true,
+  }
+  if (filter) sparseSearchBody.filter = filter
+
+  const [denseRes, sparseRes] = await Promise.all([
+    fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points/search`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(searchBody),
+    }),
+    fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points/search`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(sparseSearchBody),
+    }),
+  ])
+
+  if (!denseRes.ok) throw new Error(`dense search failed: ${denseRes.status}`)
+  if (!sparseRes.ok) throw new Error(`sparse search failed: ${sparseRes.status}`)
+
+  const denseData = (await denseRes.json()).result || []
+  const sparseData = (await sparseRes.json()).result || []
+
+  // RRF 合并
+  const rrfScores = new Map<string, { score: number; payload: any }>()
+  for (const [rank, r] of denseData.entries()) {
+    const id = String(r.id)
+    rrfScores.set(id, {
+      score: 1 / (k + rank + 1),
+      payload: r.payload,
+    })
+  }
+  for (const [rank, r] of sparseData.entries()) {
+    const id = String(r.id)
+    const existing = rrfScores.get(id)
+    const addScore = 1 / (k + rank + 1)
+    if (existing) {
+      existing.score += addScore
+    } else {
+      rrfScores.set(id, { score: addScore, payload: r.payload })
+    }
+  }
+
+  return Array.from(rrfScores.entries())
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, limit)
+    .filter(([, entry]) => entry.score >= MIN_SCORE)
+    .map(([id, entry]) => ({
+      content: entry.payload.userMessage
+        ? `用户: ${entry.payload.userMessage}\nAI: ${entry.payload.assistantMessage || ''}`
+        : entry.payload.summary || '',
+      metadata: {
+        conversationId: entry.payload.conversationId || '',
+        qaId: entry.payload.qaId || '',
+        userMessage: entry.payload.userMessage || '',
+        assistantMessage: entry.payload.assistantMessage || '',
+        createdAt: entry.payload.createdAt || 0,
+      },
+      score: entry.score,
+    }))
+}
+
+/** 按 conversationId 删除对话记忆 */
+export async function deleteConversationMemory(conversationId: string): Promise<void> {
+  const res = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points/delete`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vector, limit, with_payload: true }),
+    headers: headers(),
+    body: JSON.stringify({
+      filter: { must: [{ key: 'conversationId', match: { value: conversationId } }] },
+    }),
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Qdrant memory search failed: ${res.status} ${text}`)
+    console.error(`Qdrant delete memory failed: ${res.status} ${text}`)
+  }
+}
+
+/** scroll 某对话的所有记忆 point（用于恢复对话原文） */
+export async function scrollConversationMemory(
+  conversationId: string,
+): Promise<{ userMessage: string; assistantMessage: string; createdAt: number }[]> {
+  const res = await fetch(`${QDRANT_URL}/collections/${MEMORY_COLLECTION}/points/scroll`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      filter: { must: [{ key: 'conversationId', match: { value: conversationId } }] },
+      limit: 1000,
+      with_payload: true,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    console.error(`Qdrant scroll memory failed: ${res.status} ${text}`)
+    return []
   }
   const data = await res.json()
-  return data.result.map((r: any) => ({
-    content: r.payload.summary || '',
-    metadata: {
-      conversationId: r.payload.conversationId || '',
-      tags: r.payload.tags || [],
-      keyFacts: r.payload.keyFacts || [],
-      messageCount: r.payload.messageCount || 0,
-      createdAt: r.payload.createdAt || 0,
-    },
-    score: r.score,
-  }))
+  return (data.result?.points || [])
+    .map((p: any) => ({
+      userMessage: p.payload.userMessage || '',
+      assistantMessage: p.payload.assistantMessage || '',
+      createdAt: p.payload.createdAt || 0,
+    }))
+    .sort((a: any, b: any) => a.createdAt - b.createdAt)
 }
 
 // ── 批量写入 & 查询（供 backfill 使用） ────────────────
 
 /** 确保 resources_v2 collection 存在 */
 export async function ensureResourceCollection(): Promise<void> {
-  const exists = await fetch(`${QDRANT_URL}/collections/${COLLECTION}`, { method: 'GET' })
+  const exists = await fetch(`${QDRANT_URL}/collections/${COLLECTION}`, {
+    method: 'GET',
+    headers: headers(),
+  })
     .then(r => r.ok)
     .catch(() => false)
 
   if (!exists) {
     const res = await fetch(`${QDRANT_URL}/collections/${COLLECTION}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers(),
       body: JSON.stringify({
         name: COLLECTION,
         vectors: { size: 1024, distance: 'Cosine' },
@@ -233,7 +349,7 @@ export async function upsertBatch(points: QdrantBatchPoint[]): Promise<void> {
   if (points.length === 0) return
   const res = await fetch(`${QDRANT_URL}/collections/${COLLECTION}/points`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(),
     body: JSON.stringify({ points }),
   })
   if (!res.ok) {
@@ -249,7 +365,7 @@ export async function scrollByFilter(
 ): Promise<{ id: number; payload: Record<string, any> }[]> {
   const res = await fetch(`${QDRANT_URL}/collections/${COLLECTION}/points/scroll`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers(),
     body: JSON.stringify({ filter, limit, with_payload: true }),
   })
   if (!res.ok) {

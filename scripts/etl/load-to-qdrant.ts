@@ -14,9 +14,18 @@ import path from 'node:path'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { MongoClient } from 'mongodb'
-import { upsertBatch, ensureCollection, count } from '../lib/qdrant'
+import { upsertBatch, ensureResourceCollection } from '../../src/lib/qdrant'
 import { GAME_ALIASES, PRODUCER_GAMES, CHAR_ALIASES } from '../lib/name-aliases'
 import { generateSparseEmbedding } from '../../src/lib/ai/sparse-embedding'
+
+/** Qdrant count API */
+async function countQdrantPoints(): Promise<number> {
+  const url = `${process.env.QDRANT_URL || 'http://localhost:3933'}/collections/resources_v2/points/count`
+  const res = await fetch(url, { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) return 0
+  const data = await res.json()
+  return data.result?.count ?? 0
+}
 
 const CACHE_PATH = path.resolve('scripts/data/cache/embedded-chunks.jsonl')
 const QDRANT_BATCH = 100
@@ -88,7 +97,7 @@ async function main() {
 
   // 2. 确保 Qdrant 集合存在
   console.log('检查 Qdrant 集合...')
-  await ensureCollection()
+  await ensureResourceCollection()
 
   // 3. 写入 Qdrant
   console.log('\n写入 Qdrant...')
@@ -121,7 +130,7 @@ async function main() {
     qdrantInserted += batch.length
     console.log(`  Qdrant 进度: ${Math.min(i + QDRANT_BATCH, cached.length)}/${cached.length}`)
   }
-  const qdrantCount = await count()
+  const qdrantCount = await countQdrantPoints()
   console.log(`Qdrant 写入完成: ${qdrantInserted} 条，集合共 ${qdrantCount} 条`)
 
   // 4. 写入 MongoDB

@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { useState, useRef, useEffect, useSyncExternalStore, useCallback } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore, useCallback, memo, useDeferredValue } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Sidebar from './components/Sidebar';
@@ -20,6 +20,320 @@ function useDarkMode(): boolean {
     () => false,
   );
 }
+
+/* ── Helper to format KB source label ── */
+function sourceLabel(meta: any) {
+  const name = meta?.gameName || meta?.charName || '';
+  switch (meta?.type) {
+    case 'comment': return `${name} 相关评论`;
+    case 'review': return `${name} 相关长评`;
+    case 'char_review': return `${name} 相关评论`;
+    case 'character': return `${name} 角色介绍`;
+    case 'game_intro': return `${name} 作品简介`;
+    default: return name || '';
+  }
+}
+
+/** 低优先级 Markdown 渲染，不阻塞主线程 */
+const DeferredMarkdown = memo(function DeferredMarkdown({ text }: { text: string }) {
+  const deferredText = useDeferredValue(text);
+  return (
+    <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-headings:text-fg prose-a:text-miku prose-a:no-underline hover:prose-a:underline prose-code:bg-prose-bg prose-code:px-1 prose-code:rounded prose-code:text-sm prose-pre:bg-prose-bg prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-li:my-0 prose-strong:text-fg prose-hr:border-border">
+      <Markdown remarkPlugins={[remarkGfm]}>{deferredText}</Markdown>
+    </div>
+  );
+});
+
+/** 消息内容（Parts），仅在 parts 引用变化时重渲染 */
+const MessageContent = memo(function MessageContent({
+  parts,
+  messageId,
+  isUser,
+  collapsedCards,
+  toggleCardCollapse,
+}: {
+  parts: any;
+  messageId: string;
+  isUser: boolean;
+  collapsedCards: Set<string>;
+  toggleCardCollapse: (key: string) => void;
+}) {
+  return parts?.map((part: any, i: number) => {
+    const cardKey = `${messageId}-${i}`;
+
+    switch (part.type) {
+      /* ── Text ── */
+      case 'text':
+        if (isUser) {
+          return <div key={cardKey} className="whitespace-pre-wrap">{part.text}</div>;
+        }
+        return (
+          <DeferredMarkdown key={cardKey} text={part.text} />
+        );
+
+      /* ── Weather tool ── */
+      case 'tool-weather': {
+        const isIntermediate = parts.some(
+          (p: any, index: number) => index > i && p.type === 'tool-convertFahrenheitToCelsius',
+        );
+        if (part.state === 'output-available') {
+          if (isIntermediate) {
+            return (
+              <div key={cardKey} className="text-xs text-fg-muted italic mt-2">
+                已获取原始气象数据...
+              </div>
+            );
+          }
+          return (
+            <div key={cardKey} className="p-2.5 my-2 bg-miku/5 rounded-xl border border-miku/20">
+              <div className="text-sm text-miku-dark font-medium">📍 {part.output.location}</div>
+              <div className="text-lg font-semibold text-fg">{part.output.temperature}°F</div>
+            </div>
+          );
+        }
+        return (
+          <div key={cardKey} className="animate-pulse text-xs text-fg-muted mt-2">
+            正在调取气象站...
+          </div>
+        );
+      }
+
+      /* ── Temperature conversion ── */
+      case 'tool-convertFahrenheitToCelsius': {
+        if (part.state === 'output-available') {
+          return (
+            <div key={cardKey} className="p-2.5 my-2 bg-gradient-to-r from-miku/10 to-miku-light/20 rounded-xl border border-miku/30">
+              <div className="text-xs text-fg-muted">温度换算</div>
+              <div className="text-lg font-bold text-miku-dark">{part.output.celsius}°C</div>
+            </div>
+          );
+        }
+        return null;
+      }
+
+      /* ── Add resource ── */
+      case 'tool-addResource': {
+        if (part.state === 'output-available') {
+          return (
+            <div key={cardKey} className="p-2 my-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800">
+              ✅ 已记住一条新信息
+            </div>
+          );
+        }
+        return (
+          <div key={cardKey} className="animate-pulse text-xs text-fg-muted mt-1">
+            正在存入知识库...
+          </div>
+        );
+      }
+
+      /* ── Knowledge base retrieval (collapsible) ── */
+      case 'tool-getInformation': {
+        if (part.state === 'output-available') {
+          const firstWithResults = parts.findIndex(
+            (p: any) =>
+              p.type === 'tool-getInformation' &&
+              p.state === 'output-available' &&
+              p.output?.length,
+          );
+          if (i !== firstWithResults) return null;
+
+          const allResults = parts
+            .filter(
+              (p: any) =>
+                p.type === 'tool-getInformation' && p.state === 'output-available',
+            )
+            .flatMap((p: any) => p.output || [])
+            .filter(Boolean);
+
+          const seen = new Set<string>();
+          const unique = allResults.filter((r: any) => {
+            const contentKey = typeof r.content === 'string'
+              ? r.content.slice(0, 100)
+              : String(r.content ?? '');
+            const key = `${r.metadata?.source || ''}|${contentKey}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+          if (unique.length === 0) return null;
+
+          const collapsed = collapsedCards.has(cardKey);
+
+          return (
+            <div
+              key={cardKey}
+              className={`p-3 my-2 bg-miku/5 rounded-xl border border-miku/25 transition-all duration-200 ${
+                collapsed ? 'opacity-60' : ''
+              }`}
+            >
+              <button
+                onClick={() => toggleCardCollapse(cardKey)}
+                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-miku-dark text-sm group"
+              >
+                <span className="text-xs transition-transform duration-200">
+                  {collapsed ? '▶' : '▼'}
+                </span>
+                <span>📖 知识库 ({unique.length} 条)</span>
+              </button>
+
+              {!collapsed && (
+                <>
+                  {unique.map((r: any, j: number) => (
+                    <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-miku/10' : ''}`}>
+                      <div className="text-sm text-fg leading-relaxed break-words">{r.content}</div>
+                      {(r.metadata?.gameName || r.metadata?.charName) && (
+                        <div className="text-xs text-fg-muted mt-1">{sourceLabel(r.metadata)}</div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div key={cardKey} className="animate-pulse text-xs text-fg-muted mt-1">
+            🔍 正在检索知识库...
+          </div>
+        );
+      }
+
+      /* ── Bangumi Web Search (collapsible, single card with live append) ── */
+      case 'tool-searchWeb': {
+        // 只渲染第一个 searchWeb part，整轮搜索共用一张卡片
+        const firstSearchIdx = parts.findIndex(
+          (p: any) => p.type === 'tool-searchWeb',
+        );
+        if (i !== firstSearchIdx) return null;
+
+        // 是否有搜索仍在进行中
+        const anyPending = parts.some(
+          (p: any) => p.type === 'tool-searchWeb' && p.state === 'call',
+        );
+
+        // 收集所有已返回的结果
+        const allResults: any[] = [];
+        for (const p of parts) {
+          if (p.type === 'tool-searchWeb' && p.state === 'output-available') {
+            const data = Array.isArray(p.output) ? p.output : (p.output as any)?.data;
+            if (data?.length) allResults.push(...data);
+          }
+        }
+
+        // 去重
+        const seen = new Set<string>();
+        const unique = allResults.filter((r: any) => {
+          const key = r.name || r.id || '';
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        const collapsed = collapsedCards.has(cardKey);
+
+        return (
+          <div
+            key={cardKey}
+            className={`p-3 my-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all duration-200 ${
+              collapsed ? 'opacity-60' : ''
+            }`}
+          >
+            <button
+              onClick={() => toggleCardCollapse(cardKey)}
+              className="flex items-center gap-1.5 w-full text-left font-semibold text-emerald-700 dark:text-emerald-400 text-sm group"
+            >
+              <span className="text-xs transition-transform duration-200">
+                {collapsed ? '▶' : '▼'}
+              </span>
+              <span>🔍 Bangumi 搜索{anyPending ? '' : ` (${unique.length} 条)`}</span>
+            </button>
+
+            {!collapsed && (
+              <>
+                {anyPending && (
+                  <div className="animate-pulse text-xs text-emerald-600 dark:text-emerald-400 mb-2">
+                    正在搜索 Bangumi...
+                  </div>
+                )}
+                {unique.map((r: any, j: number) => (
+                  <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-emerald-200 dark:border-emerald-800' : ''}`}>
+                    <div className="flex items-start gap-2">
+                      <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                        r.type === 'character'
+                          ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                          : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                      }`}>
+                        {r.type === 'character' ? '角色' : '作品'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <a href={r.url} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-miku hover:underline">
+                          {r.name}
+                        </a>
+                        {r.summary && (
+                          <div className="text-xs text-fg-muted mt-0.5 line-clamp-2">{r.summary}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {!anyPending && unique.length === 0 && (
+                  <div className="text-xs text-fg-muted">未找到相关结果</div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      }
+
+      /* ── Conversation Memory Search (collapsible) ── */
+      case 'tool-searchMemory': {
+        if (part.state === 'output-available') {
+          const collapsed = collapsedCards.has(cardKey);
+          const text = typeof part.output === 'string' ? part.output : '';
+          if (!text || text === '未找到相关历史对话记录' || text === '暂无历史对话记忆可搜索') return null;
+
+          const lines = text.split('\n').filter(Boolean);
+          return (
+            <div
+              key={cardKey}
+              className={`p-3 my-2 bg-violet-50 dark:bg-violet-950/30 rounded-xl border border-violet-200 dark:border-violet-800 transition-all duration-200 ${
+                collapsed ? 'opacity-60' : ''
+              }`}
+            >
+              <button
+                onClick={() => toggleCardCollapse(cardKey)}
+                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-violet-700 dark:text-violet-400 text-sm group"
+              >
+                <span className="text-xs transition-transform duration-200">
+                  {collapsed ? '▶' : '▼'}
+                </span>
+                <span>💬 历史对话 ({lines.length} 条)</span>
+              </button>
+              {!collapsed && (
+                <div className="space-y-1">
+                  {lines.map((line: string, j: number) => (
+                    <div key={j} className="text-sm text-fg leading-relaxed whitespace-pre-wrap">{line}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div key={cardKey} className="animate-pulse text-xs text-fg-muted mt-1">
+            💬 正在搜索历史对话...
+          </div>
+        );
+      }
+
+      default:
+        return null;
+    }
+  });
+});
 
 export default function Chat() {
   const {
@@ -95,71 +409,12 @@ export default function Chat() {
   }, [messages])
   const isLoading = status === 'submitted' || status === 'streaming';
 
-  /* ── 5.4 长期会话记忆 ── */
-  const lastSavedAtRef = useRef<Record<string, number>>({});
-  const messagesRef = useRef(messages);
-  messagesRef.current = messages;
-  const currentIdRef = useRef(currentId);
-  currentIdRef.current = currentId;
-
-  /** 将对话保存到 Qdrant conversation_memory */
-  const saveConversation = useCallback((convId: string, useBeacon = false) => {
-    const msgs = messagesRef.current;
-    if (!convId || msgs.length < 2) return;
-    const now = Date.now();
-    const lastSaved = lastSavedAtRef.current[convId] || 0;
-    if (now - lastSaved < 30000) return; // 30s 去重
-    lastSavedAtRef.current[convId] = now;
-
-    const body = JSON.stringify({ conversationId: convId, messages: msgs });
-    if (useBeacon) {
-      navigator.sendBeacon('/api/chat/save-memory', new Blob([body], { type: 'application/json' }));
-    } else {
-      fetch('/api/chat/save-memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      }).catch(() => { /* 静默失败，不影响用户体验 */ });
-    }
-  }, []);
-
-  // ① beforeunload：页面关闭时保存
-  useEffect(() => {
-    const handleBeforeUnload = () => saveConversation(currentIdRef.current, true);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [saveConversation]);
-
-  // ② 30 分钟无活动自动保存
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = setTimeout(() => {
-      saveConversation(currentIdRef.current, false);
-    }, 30 * 60 * 1000);
-  }, [saveConversation]);
-
-  useEffect(() => {
-    const events = ['mousedown', 'keydown', 'touchstart'] as const;
-    const handler = () => resetIdleTimer();
-    // 首次渲染启动定时器
-    resetIdleTimer();
-    events.forEach((e) => window.addEventListener(e, handler));
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, handler));
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    };
-  }, [resetIdleTimer]);
-
-  // ③ 新建对话时保存前一个
   const handleCreateConversation = useCallback(() => {
-    saveConversation(currentIdRef.current, false);
     createConversation();
-  }, [saveConversation, createConversation]);
+  }, [createConversation]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const roundRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevMsgLen = useRef(0);
 
   /* ── Auto-scroll ── */
@@ -174,7 +429,7 @@ export default function Chat() {
   useEffect(() => {
     const userMsgs = messages.filter(m => m.role === 'user');
     if (userMsgs.length === 1) {
-      const text = userMsgs[0].parts?.find(p => p.type === 'text')?.text || '';
+      const text = (userMsgs[0].parts as any)?.find((p: any) => p.type === 'text')?.text || '';
       const title = text.slice(0, 20) || '新对话';
       const conv = conversations.find(c => c.id === currentId);
       if (conv && conv.title === '新对话') {
@@ -211,7 +466,6 @@ export default function Chat() {
       { body: { conversationId: currentId } },
     );
     setInput('');
-    resetIdleTimer();
   };
 
   const toggleCardCollapse = useCallback((key: string) => {
@@ -223,34 +477,17 @@ export default function Chat() {
     });
   }, []);
 
-  /* ── ScrollIndicator rounds ── */
+  /* ── ScrollIndicator rounds（定位到用户发言） ── */
   const rounds = (() => {
-    const result: { id: string; label: string; el: HTMLElement | null }[] = [];
+    const result: { id: string; label: string }[] = [];
     for (let i = 0; i < messages.length - 1; i++) {
       if (messages[i].role === 'user' && messages[i + 1].role === 'assistant') {
-        const label = messages[i].parts?.find(p => p.type === 'text')?.text.slice(0, 8) || '查看';
-        result.push({
-          id: messages[i + 1].id,
-          label,
-          el: roundRefs.current.get(messages[i + 1].id) || null,
-        });
+        const label = (messages[i].parts as any)?.find((p: any) => p.type === 'text')?.text.slice(0, 8) || '查看';
+        result.push({ id: messages[i].id, label });
       }
     }
     return result;
   })();
-
-  /* ── Helper to format KB source label ── */
-  const sourceLabel = (meta: any) => {
-    const name = meta?.gameName || meta?.charName || '';
-    switch (meta?.type) {
-      case 'comment': return `${name} 相关评论`;
-      case 'review': return `${name} 相关长评`;
-      case 'char_review': return `${name} 相关评论`;
-      case 'character': return `${name} 角色介绍`;
-      case 'game_intro': return `${name} 作品简介`;
-      default: return name || '';
-    }
-  };
 
   return (
     <div className={`flex flex-col h-dvh bg-subtle transition-colors ${!sidebarCollapsed ? 'sm:pl-[260px]' : ''}`}>
@@ -346,9 +583,7 @@ export default function Chat() {
                 className={`max-w-[80%] max-sm:max-w-[calc(100%-3rem)] break-words ${
                   message.role === 'user' ? '' : 'flex-1'
                 }`}
-                ref={el => {
-                  if (el && message.role === 'assistant') roundRefs.current.set(message.id, el);
-                }}
+                data-round-id={message.role === 'user' ? message.id : undefined}
               >
                 <div
                   className={`transition-colors ${
@@ -357,249 +592,19 @@ export default function Chat() {
                       : 'bg-surface text-fg rounded-2xl rounded-tl-sm px-4 py-2.5 border border-border/70 shadow-sm'
                   }`}
                 >
-                  {message.parts?.map((part: any, i: number) => {
-                    const cardKey = `${message.id}-${i}`;
+                  <MessageContent
+                    parts={message.parts}
+                    messageId={message.id}
+                    isUser={message.role === 'user'}
+                    collapsedCards={collapsedCards}
+                    toggleCardCollapse={toggleCardCollapse}
+                  />
 
-                    switch (part.type) {
-                      /* ── Text ── */
-                      case 'text':
-                        if (message.role === 'user') {
-                          return <div key={`${message.id}-${i}`} className="whitespace-pre-wrap">{part.text}</div>;
-                        }
-                        return (
-                          <div
-                            key={`${message.id}-${i}`}
-                            className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-headings:text-fg prose-a:text-miku prose-a:no-underline hover:prose-a:underline prose-code:bg-prose-bg prose-code:px-1 prose-code:rounded prose-code:text-sm prose-pre:bg-prose-bg prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-li:my-0 prose-strong:text-fg prose-hr:border-border"
-                          >
-                            <Markdown remarkPlugins={[remarkGfm]}>{part.text}</Markdown>
-                          </div>
-                        );
-
-                      /* ── Weather tool ── */
-                      case 'tool-weather': {
-                        const isIntermediate = message.parts.some(
-                          (p: any, index: number) => index > i && p.type === 'tool-convertFahrenheitToCelsius',
-                        );
-                        if (part.state === 'output-available') {
-                          if (isIntermediate) {
-                            return (
-                              <div key={`${message.id}-${i}`} className="text-xs text-fg-muted italic mt-2">
-                                已获取原始气象数据...
-                              </div>
-                            );
-                          }
-                          return (
-                            <div key={`${message.id}-${i}`} className="p-2.5 my-2 bg-miku/5 rounded-xl border border-miku/20">
-                              <div className="text-sm text-miku-dark font-medium">📍 {part.output.location}</div>
-                              <div className="text-lg font-semibold text-fg">{part.output.temperature}°F</div>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-fg-muted mt-2">
-                            正在调取气象站...
-                          </div>
-                        );
-                      }
-
-                      /* ── Temperature conversion ── */
-                      case 'tool-convertFahrenheitToCelsius': {
-                        if (part.state === 'output-available') {
-                          return (
-                            <div key={`${message.id}-${i}`} className="p-2.5 my-2 bg-gradient-to-r from-miku/10 to-miku-light/20 rounded-xl border border-miku/30">
-                              <div className="text-xs text-fg-muted">温度换算</div>
-                              <div className="text-lg font-bold text-miku-dark">{part.output.celsius}°C</div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }
-
-                      /* ── Add resource ── */
-                      case 'tool-addResource': {
-                        if (part.state === 'output-available') {
-                          return (
-                            <div key={`${message.id}-${i}`} className="p-2 my-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                              ✅ 已记住一条新信息
-                            </div>
-                          );
-                        }
-                        return (
-                          <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-fg-muted mt-1">
-                            正在存入知识库...
-                          </div>
-                        );
-                      }
-
-                      /* ── Knowledge base retrieval (collapsible) ── */
-                      case 'tool-getInformation': {
-                        if (part.state === 'output-available') {
-                          const firstWithResults = message.parts.findIndex(
-                            (p: any) =>
-                              p.type === 'tool-getInformation' &&
-                              p.state === 'output-available' &&
-                              p.output?.length,
-                          );
-                          if (i !== firstWithResults) return null;
-
-                          const allResults = message.parts
-                            .filter(
-                              (p: any) =>
-                                p.type === 'tool-getInformation' && p.state === 'output-available',
-                            )
-                            .flatMap((p: any) => p.output || [])
-                            .filter(Boolean);
-
-                          const seen = new Set<string>();
-                          const unique = allResults.filter((r: any) => {
-                            const contentKey = typeof r.content === 'string'
-                              ? r.content.slice(0, 100)
-                              : String(r.content ?? '');
-                            const key = `${r.metadata?.source || ''}|${contentKey}`;
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                          });
-
-                          if (unique.length === 0) return null;
-
-                          const collapsed = collapsedCards.has(cardKey);
-
-                          return (
-                            <div
-                              key={cardKey}
-                              className={`p-3 my-2 bg-miku/5 rounded-xl border border-miku/25 transition-all duration-200 ${
-                                collapsed ? 'opacity-60' : ''
-                              }`}
-                            >
-                              {/* Collapse toggle header */}
-                              <button
-                                onClick={() => toggleCardCollapse(cardKey)}
-                                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-miku-dark text-sm group"
-                              >
-                                <span className="text-xs transition-transform duration-200">
-                                  {collapsed ? '▶' : '▼'}
-                                </span>
-                                <span>📖 知识库 ({unique.length} 条)</span>
-                              </button>
-
-                              {/* Content (hidden when collapsed) */}
-                              {!collapsed && (
-                                <>
-                                  {unique.map((r: any, j: number) => (
-                                    <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-miku/10' : ''}`}>
-                                      <div className="text-sm text-fg leading-relaxed break-words">{r.content}</div>
-                                      {(r.metadata?.gameName || r.metadata?.charName) && (
-                                        <div className="text-xs text-fg-muted mt-1">{sourceLabel(r.metadata)}</div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          );
-                        }
-                        return (
-                          <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-fg-muted mt-1">
-                            🔍 正在检索知识库...
-                          </div>
-                        );
-                      }
-
-                      /* ── Bangumi Web Search (collapsible, merged) ── */
-                      case 'tool-searchWeb': {
-                        if (part.state === 'output-available') {
-                          const firstWithResults = message.parts.findIndex(
-                            (p: any) =>
-                              p.type === 'tool-searchWeb' &&
-                              p.state === 'output-available' &&
-                              (Array.isArray(p.output) ? p.output.length : p.output?.data?.length),
-                          );
-                          if (i !== firstWithResults) return null;
-
-                          const allResults: any[] = [];
-                          for (const p of message.parts) {
-                            if (p.type === 'tool-searchWeb' && p.state === 'output-available') {
-                              const data = Array.isArray(p.output) ? p.output : p.output?.data;
-                              if (data?.length) allResults.push(...data);
-                            }
-                          }
-
-                          if (allResults.length === 0) return null;
-
-                          const seen = new Set<string>();
-                          const unique = allResults.filter((r: any) => {
-                            const key = r.name || r.id || '';
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                          });
-
-                          const collapsed = collapsedCards.has(cardKey);
-
-                          return (
-                            <div
-                              key={cardKey}
-                              className={`p-3 my-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all duration-200 ${
-                                collapsed ? 'opacity-60' : ''
-                              }`}
-                            >
-                              {/* Collapse toggle header */}
-                              <button
-                                onClick={() => toggleCardCollapse(cardKey)}
-                                className="flex items-center gap-1.5 w-full text-left font-semibold mb-1 text-emerald-700 dark:text-emerald-400 text-sm group"
-                              >
-                                <span className="text-xs transition-transform duration-200">
-                                  {collapsed ? '▶' : '▼'}
-                                </span>
-                                <span>🔍 Bangumi 搜索结果 ({unique.length} 条)</span>
-                              </button>
-
-                              {/* Content (hidden when collapsed) */}
-                              {!collapsed && (
-                                <>
-                                  {unique.map((r: any, j: number) => (
-                                    <div key={j} className={`${j > 0 ? 'mt-2 pt-2 border-t border-emerald-200 dark:border-emerald-800' : ''}`}>
-                                      <div className="flex items-start gap-2">
-                                        <span className={`flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                                          r.type === 'character'
-                                            ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
-                                            : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                                        }`}>
-                                          {r.type === 'character' ? '角色' : '作品'}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                          <a href={r.url} target="_blank" rel="noopener noreferrer"
-                                            className="text-sm font-medium text-miku hover:underline">
-                                            {r.name}
-                                          </a>
-                                          {r.summary && (
-                                            <div className="text-xs text-fg-muted mt-0.5 line-clamp-2">{r.summary}</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          );
-                        }
-                        return (
-                          <div key={`${message.id}-${i}`} className="animate-pulse text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                            🔍 正在搜索 Bangumi...
-                          </div>
-                        );
-                      }
-
-                      default:
-                        return null;
-                    }
-                  })}
                 </div>
               </div>
             </div>
           ))}
+
           <div ref={bottomRef} />
         </div>
       </div>

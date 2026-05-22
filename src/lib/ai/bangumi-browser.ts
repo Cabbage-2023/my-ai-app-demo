@@ -11,6 +11,7 @@
  */
 
 import puppeteer from 'puppeteer';
+import type { Browser, Page } from 'puppeteer';
 import { readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -22,12 +23,12 @@ const PROJECT_ROOT = path.resolve('.');
 /** 用于验证 R18 权限的测试页面（一个已知 R18 条目） */
 const R18_TEST_URL = 'https://bgm.tv/subject/226254';
 
-let _browser: puppeteer.Browser | null = null;
+let _browser: Browser | null = null;
 let _launching = false;
 
 /** 验证浏览器是否有 R18 访问权限 */
-async function checkR18Access(browser: puppeteer.Browser): Promise<boolean> {
-  let page: puppeteer.Page | null = null;
+async function checkR18Access(browser: Browser): Promise<boolean> {
+  let page: Page | null = null;
   try {
     page = await browser.newPage();
     await page.goto(R18_TEST_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -85,7 +86,7 @@ async function launchBrowserProcess(): Promise<void> {
 }
 
 /** 连接或复用浏览器（始终返回有 R18 权限的浏览器） */
-async function getBrowser(): Promise<puppeteer.Browser> {
+async function getBrowser(): Promise<Browser> {
   // 已有连接 → 验证 R18（避免 session 过期未被发现）
   if (_browser?.connected) {
     if (await checkR18Access(_browser)) {
@@ -130,6 +131,9 @@ async function getBrowser(): Promise<puppeteer.Browser> {
 
 /** 通过浏览器获取页面 HTML（用于 R18 内容） */
 export async function fetchHTMLviaBrowser(url: string): Promise<string> {
+  if (!isBrowserAvailable()) {
+    throw new Error('服务器无浏览器环境，不支持 R18 页面回填。请在本地开发环境执行回填，或使用 Bangumi API（普通内容不受影响）。');
+  }
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
@@ -143,6 +147,17 @@ export async function fetchHTMLviaBrowser(url: string): Promise<string> {
     return await page.content();
   } finally {
     await page.close();
+  }
+}
+
+/** 检测本地是否有 Puppeteer 浏览器可用 */
+function isBrowserAvailable(): boolean {
+  // 未安装 puppeteer → 无浏览器
+  try {
+    puppeteer.executablePath();
+    return true;
+  } catch {
+    return false;
   }
 }
 

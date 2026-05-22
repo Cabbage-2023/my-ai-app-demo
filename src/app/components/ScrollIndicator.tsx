@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface ScrollIndicatorProps {
   containerRef: React.RefObject<HTMLDivElement | null>
-  rounds: { id: string; label: string; el: HTMLElement | null }[]
+  rounds: { id: string; label: string }[]
 }
 
 const MAX_VISIBLE_DOTS = 5;
@@ -12,38 +12,44 @@ const MAX_VISIBLE_DOTS = 5;
 export default function ScrollIndicator({ containerRef, rounds }: ScrollIndicatorProps) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const lastActive = useRef(-1);
   const [panelOpen, setPanelOpen] = useState(false);
-  const zoneRef = useRef<HTMLDivElement>(null);
   const panelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // IntersectionObserver
-  useEffect(() => {
-    if (rounds.length < 3 || !containerRef.current) return;
+  // 通过 data-round-id 属性查找元素并建立 IntersectionObserver
+  const setupObserver = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || rounds.length < 3) return;
+
     observerRef.current?.disconnect();
 
     const observer = new IntersectionObserver(
       entries => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            const idx = rounds.findIndex(r => r.el === entry.target)
-            if (idx >= 0) setActiveIndex(idx)
+            const idx = entry.target.getAttribute('data-round-index');
+            if (idx) setActiveIndex(Number(idx));
           }
         }
       },
-      { root: containerRef.current, threshold: 0.3 },
-    )
+      { root: container, threshold: 0.3 },
+    );
 
-    rounds.forEach(r => {
-      if (r.el) observer.observe(r.el)
-    })
+    // 查询所有带 data-round-id 的元素，按 DOM 顺序分配索引
+    const elements = container.querySelectorAll<HTMLElement>('[data-round-id]');
+    elements.forEach((el, idx) => {
+      el.setAttribute('data-round-index', String(idx));
+      observer.observe(el);
+    });
 
-    observerRef.current = observer
-    return () => observer.disconnect()
-  }, [rounds, containerRef]);
+    observerRef.current = observer;
+  }, [containerRef, rounds.length]);
 
-  // 记住最后可见的 activeIndex
-  if (activeIndex > lastActive.current) lastActive.current = activeIndex;
+  // rounds.length 变化时重建 observer
+  useEffect(() => {
+    setupObserver();
+    return () => observerRef.current?.disconnect();
+  }, [setupObserver]);
+
   const displayIndex = activeIndex >= 0 ? activeIndex : 0;
 
   // 少于 3 轮不显示
@@ -60,7 +66,6 @@ export default function ScrollIndicator({ containerRef, rounds }: ScrollIndicato
   const hasPrev = start > 0;
   const hasNext = end < rounds.length;
 
-  // 进出整个区域的延迟管理
   const enterZone = () => {
     if (panelTimeoutRef.current) clearTimeout(panelTimeoutRef.current);
     setPanelOpen(true);
@@ -69,14 +74,14 @@ export default function ScrollIndicator({ containerRef, rounds }: ScrollIndicato
     panelTimeoutRef.current = setTimeout(() => setPanelOpen(false), 200);
   };
 
-  const scrollTo = (round: typeof rounds[0]) => {
-    round.el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const scrollTo = (roundId: string) => {
+    const el = containerRef.current?.querySelector(`[data-round-id="${roundId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setPanelOpen(false);
   };
 
   return (
     <div
-      ref={zoneRef}
       className="fixed right-2 top-1/2 -translate-y-1/2 z-10 max-sm:hidden select-none"
       onMouseEnter={enterZone}
       onMouseLeave={leaveZone}
@@ -90,13 +95,13 @@ export default function ScrollIndicator({ containerRef, rounds }: ScrollIndicato
         {hasPrev && (
           <div className="text-[8px] text-fg-muted leading-none mb-0.5">▲</div>
         )}
-        {visibleRounds.map((r) => {
-          const globalIdx = start + visibleRounds.indexOf(r);
+        {visibleRounds.map((r, i) => {
+          const globalIdx = start + i;
           const isActive = globalIdx === displayIndex;
           return (
             <button
               key={r.id}
-              onClick={() => scrollTo(r)}
+              onClick={() => scrollTo(r.id)}
               className={[
                 'rounded-full transition-all duration-200',
                 isActive ? 'w-3 h-5 bg-miku' : 'w-2 h-2 bg-border hover:bg-miku/50',
@@ -127,7 +132,7 @@ export default function ScrollIndicator({ containerRef, rounds }: ScrollIndicato
             return (
               <button
                 key={r.id}
-                onClick={() => scrollTo(r)}
+                onClick={() => scrollTo(r.id)}
                 className={[
                   'w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors',
                   isActive
