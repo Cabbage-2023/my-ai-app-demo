@@ -5,12 +5,8 @@ FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# 只用 pnpm-lock，避免 package-lock 干扰
-COPY pnpm-lock.yaml ./
-RUN corepack enable && pnpm fetch
-
-COPY package.json ./
-RUN corepack enable && pnpm install --offline --no-frozen-lockfile
+COPY pnpm-lock.yaml package.json .npmrc ./
+RUN corepack enable && pnpm install --frozen-lockfile
 
 # ============================================================
 # Stage 2: Build

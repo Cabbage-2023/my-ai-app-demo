@@ -47,8 +47,5 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
     "typescript": "^5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "onnxruntime-node", "puppeteer", "sharp", "unrs-resolver"]
   }
 }
