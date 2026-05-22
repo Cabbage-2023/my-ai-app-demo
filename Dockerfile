@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: Install dependencies (with build toolchain)
 # ============================================================
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -10,12 +10,12 @@ COPY pnpm-lock.yaml ./
 RUN corepack enable && pnpm fetch
 
 COPY package.json ./
-RUN corepack enable && pnpm install --offline --frozen-lockfile
+RUN corepack enable && pnpm install --offline --no-frozen-lockfile
 
 # ============================================================
 # Stage 2: Build
 # ============================================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -24,7 +24,7 @@ RUN corepack enable && pnpm build
 # ============================================================
 # Stage 3: Production runner (standalone)
 # ============================================================
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
