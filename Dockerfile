@@ -6,7 +6,10 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY pnpm-lock.yaml package.json pnpm-workspace.yaml .npmrc ./
-RUN corepack enable && pnpm install --frozen-lockfile
+# 生产环境用 SiliconFlow API，不需要本地 fastembed(GPU)
+# 跳过 onnxruntime-node 下载几百 MB 的 CUDA 包
+ENV ONNXRUNTIME_NODE_SKIP_GPU=true
+RUN corepack enable && pnpm install --frozen-lockfile --registry https://registry.npmmirror.com
 
 # ============================================================
 # Stage 2: Build
