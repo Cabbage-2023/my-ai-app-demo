@@ -92,7 +92,7 @@ export function useConversations() {
     const nextId = id === state.currentId ? newList[0].id : state.currentId
     setState(prev => ({ list: newList, currentId: nextId, hydrated: prev.hydrated }))
     // 异步删除服务端记忆，不阻塞 UI
-    fetch('/api/chat/delete-memory', {
+    fetch('/ai/api/chat/delete-memory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversationId: id }),

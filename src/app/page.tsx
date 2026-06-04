@@ -358,6 +358,7 @@ export default function Chat() {
   /* ── useChat with multi-conversation support ── */
   const { messages, sendMessage, status, stop, setMessages } = useChat({
     id: currentId,
+    api: '/ai/api/chat',
   });
 
   /* ── 手动持久化消息到 localStorage ── */
