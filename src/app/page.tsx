@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { HttpChatTransport } from 'ai';
 import { useState, useRef, useEffect, useSyncExternalStore, useCallback, memo, useDeferredValue } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -358,7 +359,7 @@ export default function Chat() {
   /* ── useChat with multi-conversation support ── */
   const { messages, sendMessage, status, stop, setMessages } = useChat({
     id: currentId,
-    api: '/ai/api/chat',
+    transport: new HttpChatTransport({ api: '/ai/api/chat' }),
   });
 
   /* ── 手动持久化消息到 localStorage ── */
