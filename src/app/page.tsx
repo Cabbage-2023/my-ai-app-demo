@@ -330,6 +330,96 @@ const MessageContent = memo(function MessageContent({
         );
       }
 
+      /* ── Agent 调试面板 ── */
+      case 'tool-_agentDecision': {
+        // 只渲染第一个 _agentDecision part，所有决策共用一张折叠卡片
+        const firstIdx = parts.findIndex(
+          (p: any) => p.type === 'tool-_agentDecision',
+        );
+        if (i !== firstIdx) return null;
+
+        const allDecisions = parts.filter(
+          (p: any) => p.type === 'tool-_agentDecision',
+        );
+
+        // 去重：同一个 toolCallId 只保留第一次出现
+        const seen = new Set<string>();
+        const unique = allDecisions.filter((p: any) => {
+          const key = p.toolCallId;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (unique.length === 0) return null;
+
+        const cardKey = `${messageId}-agentDecision`;
+        const collapsed = collapsedCards.has(cardKey);
+
+        return (
+          <div
+            key={cardKey}
+            className={`p-2 my-1.5 rounded-lg border border-dashed border-border/50 bg-gray-50 dark:bg-gray-900/30 transition-all duration-200 ${
+              collapsed ? 'opacity-50' : ''
+            }`}
+          >
+            <button
+              onClick={() => toggleCardCollapse(cardKey)}
+              className="flex items-center gap-1.5 w-full text-left font-medium text-xs text-fg-muted group"
+            >
+              <span className="text-[10px] transition-transform duration-200">
+                {collapsed ? '▶' : '▼'}
+              </span>
+              <span>🤖 Agent 决策日志 ({unique.length} 步)</span>
+            </button>
+
+            {!collapsed && (
+              <div className="mt-1.5 space-y-1">
+                {unique.map((d: any, j: number) => {
+                  const input: any = d.input || {};
+                  const icon =
+                    input.decision === 'tool_call' ? '🔧' :
+                    input.decision === 'tool_result' ? '📥' :
+                    input.decision === 'respond' ? '⚠️' :
+                    '💬';
+
+                  return (
+                    <div key={j} className="text-[11px] font-mono leading-relaxed text-fg-muted">
+                      <span className="mr-1">{icon}</span>
+                      {input.decision === 'tool_call' && (
+                        <>
+                          调用
+                          {input.toolCalls?.map((tc: any, k: number) => (
+                            <span key={k}>
+                              <span className="text-miku font-semibold">{tc.name}</span>
+                              {tc.args && (
+                                <span className="text-[10px] text-fg-muted ml-0.5">
+                                  ({JSON.stringify(tc.args).slice(0, 150)})
+                                </span>
+                              )}
+                              {k < input.toolCalls.length - 1 ? ', ' : ''}
+                            </span>
+                          ))}
+                        </>
+                      )}
+                      {input.decision === 'direct_reply' && (
+                        <span>AI 直接回复：<span className="text-fg-secondary">{input.summary}</span></span>
+                      )}
+                      {input.decision === 'tool_result' && (
+                        <span>工具 <span className="text-miku font-semibold">{input.toolCallId}</span> 返回 <span className="text-fg-secondary">{input.summary}</span></span>
+                      )}
+                      {input.decision === 'respond' && (
+                        <span className="text-amber-600 dark:text-amber-400">{input.reason}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
       default:
         return null;
     }

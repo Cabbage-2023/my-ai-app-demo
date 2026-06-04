@@ -119,14 +119,37 @@ export async function POST(req: Request) {
           },
         );
 
+        let decisionStep = 0;
+
         for await (const event of eventStream) {
           if (abortController.signal.aborted) break;
 
           // agent 节点输出
           if (event.agent) {
             const msg: AIMessage = event.agent.messages[0];
-            if (msg.tool_calls?.length) {
-              for (const tc of msg.tool_calls) {
+
+            // ═══ 调试面板：agent 决策 ═══
+            const hasTools = !!(msg.tool_calls?.length);
+            controller.enqueue({
+              type: 'tool-input-available' as const,
+              toolCallId: `_decision_${++decisionStep}`,
+              toolName: '_agentDecision',
+              input: hasTools
+                ? {
+                    decision: 'tool_call' as const,
+                    toolCalls: msg.tool_calls!.map(tc => ({
+                      name: tc.name,
+                      args: tc.args,
+                    })),
+                  }
+                : {
+                    decision: 'direct_reply' as const,
+                    summary: (typeof msg.content === 'string' ? msg.content : '').slice(0, 300),
+                  },
+            });
+
+            if (hasTools) {
+              for (const tc of msg.tool_calls!) {
                 controller.enqueue({
                   type: 'tool-input-available' as const,
                   toolCallId: tc.id!,
@@ -158,11 +181,37 @@ export async function POST(req: Request) {
                 toolCallId: tm.tool_call_id,
                 output,
               });
+
+              // ═══ 调试面板：工具返回结果 ═══
+              const resultStr = typeof tm.content === 'string' ? tm.content : JSON.stringify(tm.content);
+              controller.enqueue({
+                type: 'tool-input-available' as const,
+                toolCallId: `_decision_${++decisionStep}`,
+                toolName: '_agentDecision',
+                input: {
+                  decision: 'tool_result' as const,
+                  toolCallId: tm.tool_call_id,
+                  summary: resultStr.length > 200
+                    ? `${resultStr.slice(0, 200)}…`
+                    : resultStr,
+                },
+              });
             }
           }
 
           // respond 节点输出（兜底回复）
           if (event.respond) {
+            // ═══ 调试面板：兜底节点触发 ═══
+            controller.enqueue({
+              type: 'tool-input-available' as const,
+              toolCallId: `_decision_${++decisionStep}`,
+              toolName: '_agentDecision',
+              input: {
+                decision: 'respond' as const,
+                reason: '工具调用次数超限（≥5），转入兜底节点',
+              },
+            });
+
             const msg = event.respond.messages[0];
             const text = typeof msg.content === 'string' ? msg.content : '';
             if (text) {
