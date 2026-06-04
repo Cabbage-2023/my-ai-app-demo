@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "RAG知识库 AI助手",
   description: "基于 Next.js + LangGraph + RAG 的 Galgame 知识库 AI 助手",
-  icons: [{ rel: "icon", url: "/favicon.ico?v=2" }],
+  icons: [{ rel: "icon", url: "/ai/favicon.ico?v=2" }],
 };
 
 export default function RootLayout({
