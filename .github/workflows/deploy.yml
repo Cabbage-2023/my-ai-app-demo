@@ -28,8 +28,22 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
           script: |
             cd /opt/my-ai-app-demo
-            git pull origin main
+
+            echo "📦 Pulling latest code..."
+            for i in 1 2 3; do
+              git pull origin main && break
+              echo "⚠️ git pull 失败 (attempt $i/3)，5 秒后重试..."
+              sleep 5
+              if [ $i -eq 3 ]; then
+                echo "❌ git pull 三次均失败，中止部署"
+                exit 1
+              fi
+            done
+
+            echo "🔨 Building and restarting..."
             docker compose up -d --build app
             docker image prune -f
+            echo "✅ Deploy complete"
