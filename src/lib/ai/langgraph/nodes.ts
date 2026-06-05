@@ -58,6 +58,13 @@ searchWeb 工具带有 persist 参数（默认 false）：
 3. 用户指代是否模糊？如果是，先用 disambiguateEntity 反问用户确认具体实体，而不是自己猜测
 如果信息已充足或知识库中没有更多相关内容，直接生成回复，不要重复调用工具。
 
+## 角色搜索兜底
+如果你已经尝试了一次 searchWeb 返回空，**并且用户查询的是一个角色名（而非游戏名）**：
+**立即停止搜索，不要再换关键词重试。** 直接反问用户"这个角色出自哪部作品？"
+用户提供了作品名后，先用 getInformation 查作品，必要时再用 searchWeb。
+
+⚠️ **一条硬性规则：同一轮对话中 searchWeb 最多调 2 次。如果第一次搜角色名为空，不要换关键词再搜，直接反问。**
+
 ## 兜底规则
 如果你已经尝试过 getInformation（知识库）和 searchWeb（联网搜索），两者都没有返回有效信息——说明知识库和 Bangumi 都没有收录这个内容。此时直接用你自己的知识回答，**不要重复调用工具**。不确定的内容如实告知用户。`;
 
@@ -229,12 +236,14 @@ export async function respondNode(
 export function router(state: AgentState): string {
   const lastMessage = state.messages[state.messages.length - 1];
 
-  // 统计历史 tool_calls 次数，超过上限走兜底回复
-  const toolCallCount = state.messages.filter(
+  // 统计本轮对话（从最后一条用户消息起）的 tool_calls 次数，超过上限走兜底
+  const lastUserIdx = state.messages.map(m => m._getType()).lastIndexOf('human');
+  const recentMessages = lastUserIdx === -1 ? state.messages : state.messages.slice(lastUserIdx);
+  const toolCallCount = recentMessages.filter(
     (m) => m instanceof AIMessage && (m as AIMessage).tool_calls?.length,
   ).length;
-  if (toolCallCount >= 5) {
-    console.log(`[router] 工具调用已达 ${toolCallCount} 次，转入兜底节点`);
+  if (toolCallCount >= 8) {
+    console.log(`[router] 本轮工具调用已达 ${toolCallCount} 次，转入兜底节点`);
     return "respond";
   }
 

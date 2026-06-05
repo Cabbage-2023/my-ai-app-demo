@@ -1,3 +1,6 @@
+import https from 'https';
+import http from 'http';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
@@ -224,9 +227,28 @@ export const rewriteQueryTool = new DynamicStructuredTool({
 
 import { COMPANY_SEARCH_ALIASES, PRODUCER_GAMES } from '@/lib/ai/name-aliases';
 
-const BANGUMI_API_BASE = 'https://api.bgm.tv';
+const BANGUMI_API_BASE = process.env.BANGUMI_API_BASE || 'https://api.bgm.tv';
 
-/** 调用 Bangumi API（带 Bearer Token） */
+/**
+ * 基于 https 模块的 GET 请求，通过代理（如果配置了 HTTPS_PROXY）访问 api.bgm.tv。
+ * Node.js v24 内置 fetch（undici）与 Bangumi 服务器的 TLS 不兼容，
+ * 且原生 https 模块也不自动读 HTTPS_PROXY 环境变量，所以手动注入 HttpsProxyAgent。
+ */
+function httpsGet(url: string, headers: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const mod = parsed.protocol === 'https:' ? https : http;
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+    const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+    mod.get(url, { headers, agent }, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+/** 调用 Bangumi API（带 Bearer Token，支持 POST），也走代理 */
 async function fetchBangumiAPI(endpoint: string, body?: unknown): Promise<any> {
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -235,13 +257,33 @@ async function fetchBangumiAPI(endpoint: string, body?: unknown): Promise<any> {
   const token = process.env.BANGUMI_API_TOKEN;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${BANGUMI_API_BASE}${endpoint}`, {
-    method: body ? 'POST' : 'GET',
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
+  const url = `${BANGUMI_API_BASE}${endpoint}`;
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+  const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const mod = parsed.protocol === 'https:' ? https : http;
+    const bodyStr = body ? JSON.stringify(body) : undefined;
+    const req = mod.request(url, {
+      method: body ? 'POST' : 'GET',
+      headers: { ...headers, 'Content-Length': bodyStr ? Buffer.byteLength(bodyStr).toString() : '0' },
+      agent,
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => data += chunk);
+      res.on('end', () => {
+        if (!res.statusCode || res.statusCode >= 400) {
+          reject(new Error(`Bangumi API ${res.statusCode}: ${endpoint}`));
+        } else {
+          try { resolve(JSON.parse(data)); } catch { resolve(data); }
+        }
+      });
+    });
+    req.on('error', reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
   });
-  if (!res.ok) throw new Error(`Bangumi API ${res.status}: ${endpoint}`);
-  return res.json();
 }
 
 /** 搜索 Bangumi（并行搜索 subjects + characters，合并结果） */
@@ -292,11 +334,10 @@ async function searchSubjectOldAPI(term: string): Promise<BangumiSearchResult[]>
   const results: BangumiSearchResult[] = [];
   try {
     const url = `${BANGUMI_API_BASE}/search/subject/${encodeURIComponent(term)}?type=4`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    const text = await httpsGet(url, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     });
-    if (!res.ok) return results;
-    const data = await res.json();
+    const data = JSON.parse(text);
     for (const item of (data.list || []).slice(0, 5)) {
       results.push({
         source: 'bangumi',
@@ -317,14 +358,12 @@ async function fetchSubjectCharacters(subjectId: number): Promise<BangumiSearchR
   try {
     const token = process.env.BANGUMI_API_TOKEN;
     if (!token) return [];
-    const res = await fetch(`${BANGUMI_API_BASE}/v0/subjects/${subjectId}/characters`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Authorization': `Bearer ${token}`,
-      },
+    const url = `${BANGUMI_API_BASE}/v0/subjects/${subjectId}/characters`;
+    const text = await httpsGet(url, {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Authorization': `Bearer ${token}`,
     });
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = JSON.parse(text);
     if (!Array.isArray(data)) return [];
     return data.map((char: any) => ({
       source: 'bangumi' as const,
@@ -469,7 +508,8 @@ export const searchWebTool = new DynamicStructuredTool({
   description:
     "搜索 Bangumi 获取作品和角色信息。当用户问到知识库之外的内容、新作、冷门作品时使用。" +
     "当用户提到特定作品/角色/公司时，先用 getInformation 从知识库检索，如果找不到再用此工具搜索。" +
-    "query 保持简洁，只用游戏名或角色名，不要包含提问句式或多余描述。",
+    "query 保持简洁，只用游戏名或角色名，不要包含提问句式或多余描述。" +
+    "注意：Bangumi 只能搜到作品/游戏标题，如果搜角色名（如'冬马和纱'）大概率返回空。",
   schema: z.object({
     query: z.string().describe("搜索关键词（作品名或角色名）"),
     persist: z.boolean().optional().default(false).describe(

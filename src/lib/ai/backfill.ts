@@ -34,7 +34,7 @@ import {
 
 // ── 常量 ─────────────────────────────────────────────────
 
-const API_BASE = 'https://api.bgm.tv';
+const API_BASE = process.env.BANGUMI_API_BASE || 'https://api.bgm.tv';
 const WEB_BASE = 'https://bgm.tv';
 const PARSED_DIR = path.resolve('scripts/data/parsed');
 
