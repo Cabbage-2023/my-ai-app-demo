@@ -9,6 +9,8 @@ services:
     expose:
       - "6333"
       - "6334"
+    ports:
+      - "3933:6333"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333"]
