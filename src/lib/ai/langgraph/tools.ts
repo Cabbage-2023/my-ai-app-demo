@@ -287,17 +287,17 @@ function getProducerGames(query: string): string[] {
   return [];
 }
 
-/** 单次 Bangumi 关键词搜索（subjects + characters） */
-async function searchBangumiSingle(term: string): Promise<BangumiSearchResult[]> {
+/** 旧版 GET 搜索条目（支持中文/日文/英文） */
+async function searchSubjectOldAPI(term: string): Promise<BangumiSearchResult[]> {
   const results: BangumiSearchResult[] = [];
-
-  const [subjectRes, charRes] = await Promise.allSettled([
-    fetchBangumiAPI('/v0/search/subjects', { keyword: term, filter: { type: [4] }, limit: 5 }),
-    fetchBangumiAPI('/v0/search/characters', { keyword: term, limit: 3 }),
-  ]);
-
-  if (subjectRes.status === 'fulfilled' && subjectRes.value?.data) {
-    for (const item of subjectRes.value.data) {
+  try {
+    const url = `${BANGUMI_API_BASE}/search/subject/${encodeURIComponent(term)}?type=4`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    if (!res.ok) return results;
+    const data = await res.json();
+    for (const item of (data.list || []).slice(0, 5)) {
       results.push({
         source: 'bangumi',
         type: item.type === 4 ? 'game' : 'subject',
@@ -308,23 +308,75 @@ async function searchBangumiSingle(term: string): Promise<BangumiSearchResult[]>
         image: item.images?.large || item.images?.medium || '',
       });
     }
-  }
-
-  if (charRes.status === 'fulfilled' && charRes.value?.data) {
-    for (const item of charRes.value.data) {
-      results.push({
-        source: 'bangumi',
-        type: 'character',
-        id: item.id,
-        name: item.name || '',
-        summary: (item.summary || '').slice(0, 300),
-        url: `https://bangumi.tv/character/${item.id}`,
-        image: item.images?.large || item.images?.medium || '',
-      });
-    }
-  }
-
+  } catch {}
   return results;
+}
+
+/** 通过 v0 API 获取指定条目下的登场角色 */
+async function fetchSubjectCharacters(subjectId: number): Promise<BangumiSearchResult[]> {
+  try {
+    const token = process.env.BANGUMI_API_TOKEN;
+    if (!token) return [];
+    const res = await fetch(`${BANGUMI_API_BASE}/v0/subjects/${subjectId}/characters`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((char: any) => ({
+      source: 'bangumi' as const,
+      type: 'character' as const,
+      id: char.id,
+      name: char.name || '',
+      summary: (char.role_name || char.name || '').slice(0, 300),
+      url: `https://bangumi.tv/character/${char.id}`,
+      image: char.images?.large || char.images?.medium || '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** 判断字符串是否包含非 ASCII 字符（中/日/韩等） */
+function hasCJK(text: string): boolean {
+  return /[^\x00-\x7F]/.test(text);
+}
+
+/** 单次 Bangumi 关键词搜索 */
+async function searchBangumiSingle(term: string): Promise<BangumiSearchResult[]> {
+  // 1. 旧版 GET 搜索条目（中/日/英全通）
+  const subjects = await searchSubjectOldAPI(term);
+
+  // 2. 取 top-1 条目下的登场角色
+  let characters: BangumiSearchResult[] = [];
+  if (subjects.length > 0) {
+    characters = await fetchSubjectCharacters(subjects[0].id);
+  }
+
+  // 3. v0 POST 搜索作为非 CJK 的 fallback
+  if (subjects.length === 0 && !hasCJK(term)) {
+    try {
+      const data = await fetchBangumiAPI('/v0/search/subjects', { keyword: term, filter: { type: [4] }, limit: 5 });
+      if (data?.data) {
+        for (const item of data.data) {
+          subjects.push({
+            source: 'bangumi',
+            type: item.type === 4 ? 'game' : 'subject',
+            id: item.id,
+            name: item.name_cn || item.name || '',
+            summary: (item.summary || '').slice(0, 300),
+            url: `https://bangumi.tv/subject/${item.id}`,
+            image: item.images?.large || item.images?.medium || '',
+          });
+        }
+      }
+    } catch {}
+  }
+
+  return [...subjects, ...characters];
 }
 
 /**

@@ -242,21 +242,25 @@ export async function POST(req: Request) {
         const isAbort = errName === 'AbortError' || abortController.signal.aborted;
 
         if (isAbort) {
-          controller.enqueue({ type: 'finish' as const, finishReason: 'stop' as const });
+          // 客户端已断连 → stream 已被取消，enqueue/close 都会抛异常，直接退出
           return;
         }
 
         const errId = crypto.randomUUID();
-        controller.enqueue({ type: 'text-start' as const, id: errId });
-        controller.enqueue({
-          type: 'text-delta' as const,
-          id: errId,
-          delta: `抱歉，处理请求时出错：${errMsg}`,
-        });
-        controller.enqueue({ type: 'text-end' as const, id: errId });
-        controller.enqueue({ type: 'finish' as const, finishReason: 'error' as const });
+        try {
+          controller.enqueue({ type: 'text-start' as const, id: errId });
+          controller.enqueue({
+            type: 'text-delta' as const,
+            id: errId,
+            delta: `抱歉，处理请求时出错：${errMsg}`,
+          });
+          controller.enqueue({ type: 'text-end' as const, id: errId });
+          controller.enqueue({ type: 'finish' as const, finishReason: 'error' as const });
+        } catch {
+          // error 路径也可能被中断，静默忽略
+        }
       } finally {
-        controller.close();
+        try { controller.close(); } catch { /* stream 已取消，忽略 */ }
       }
     },
   });
