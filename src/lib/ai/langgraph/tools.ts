@@ -348,15 +348,25 @@ function hasCJK(text: string): boolean {
 /** 单次 Bangumi 关键词搜索 */
 async function searchBangumiSingle(term: string): Promise<BangumiSearchResult[]> {
   // 1. 旧版 GET 搜索条目（中/日/英全通）
-  const subjects = await searchSubjectOldAPI(term);
+  let subjects = await searchSubjectOldAPI(term);
 
-  // 2. 取 top-1 条目下的登场角色
+  // 2. 若全量 query 无结果，拆词重试（AI 常把整句当搜索词）
+  if (subjects.length === 0) {
+    const segments = term.split(/[\s,，、及和与]+/).filter(Boolean);
+    for (const seg of segments) {
+      if (seg === term) continue;
+      subjects = await searchSubjectOldAPI(seg);
+      if (subjects.length > 0) break;
+    }
+  }
+
+  // 3. 取 top-1 条目下的登场角色
   let characters: BangumiSearchResult[] = [];
   if (subjects.length > 0) {
     characters = await fetchSubjectCharacters(subjects[0].id);
   }
 
-  // 3. v0 POST 搜索作为非 CJK 的 fallback
+  // 4. v0 POST 搜索作为非 CJK 的 fallback
   if (subjects.length === 0 && !hasCJK(term)) {
     try {
       const data = await fetchBangumiAPI('/v0/search/subjects', { keyword: term, filter: { type: [4] }, limit: 5 });
@@ -449,12 +459,17 @@ async function searchBangumi(query: string): Promise<BangumiSearchResult[]> {
  * searchWeb — 搜索 Bangumi 获取最新作品/角色信息。
  * 当用户问到知识库未收录的内容、冷门作品、新作时使用。
  * persist=true 时会在后台自动回填到知识库。
+ *
+ * 注意：query 参数应保持简洁，以游戏名或角色名即可，
+ * 不要包含提问句式或多余描述（如用"白色相簿2"而非"介绍一下白色相簿2"）。
+ * 系统会自动拆词重试，但仍建议只用关键实体名。
  */
 export const searchWebTool = new DynamicStructuredTool({
   name: "searchWeb",
   description:
     "搜索 Bangumi 获取作品和角色信息。当用户问到知识库之外的内容、新作、冷门作品时使用。" +
-    "当用户提到特定作品/角色/公司时，先用 getInformation 从知识库检索，如果找不到再用此工具搜索。",
+    "当用户提到特定作品/角色/公司时，先用 getInformation 从知识库检索，如果找不到再用此工具搜索。" +
+    "query 保持简洁，只用游戏名或角色名，不要包含提问句式或多余描述。",
   schema: z.object({
     query: z.string().describe("搜索关键词（作品名或角色名）"),
     persist: z.boolean().optional().default(false).describe(
