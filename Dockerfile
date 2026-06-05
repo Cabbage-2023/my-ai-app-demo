@@ -17,6 +17,7 @@ RUN corepack enable && pnpm install --frozen-lockfile --registry https://registr
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+ARG CACHE_BUST
 COPY . .
 RUN corepack enable && pnpm build
 
